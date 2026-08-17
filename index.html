@@ -333,11 +333,76 @@
   @media (prefers-reduced-motion: reduce){
     .send-btn, .sunglasses, .phone{ transition:none; }
   }
+
+/* PASS 1: first-launch profile + persistent local player state */
+.onboard-overlay{position:fixed;inset:0;z-index:9999;background:rgba(20,22,18,.72);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:14px;box-sizing:border-box}
+.onboard-card{width:min(100%,520px);max-height:calc(100dvh - 28px);background:#f7f2e7;color:#222;border:2px solid #222;border-radius:24px;box-shadow:0 18px 60px rgba(0,0,0,.38);overflow:hidden;display:flex;flex-direction:column}
+.onboard-head{padding:22px 22px 12px;background:#dfe7c9;border-bottom:1px solid #bbb;flex:none}
+.onboard-head h1{margin:0 0 5px;font-size:25px;line-height:1.1}.onboard-head p{margin:0;font-size:13px;opacity:.75}
+.onboard-body{padding:18px 20px;overflow:auto}.onboard-body label{display:block;font-weight:800;font-size:13px;margin:0 0 7px}.onboard-body input{width:100%;box-sizing:border-box;padding:13px 14px;border:2px solid #222;border-radius:13px;background:#fff;font-size:16px;outline:none;margin-bottom:13px}.onboard-body input:focus{box-shadow:0 0 0 3px rgba(112,124,92,.25)}
+.onboard-primary,.onboard-secondary{width:100%;border:2px solid #222;border-radius:14px;padding:13px 15px;font-weight:900;font-size:15px;cursor:pointer}.onboard-primary{background:#707c5c;color:#fff}.onboard-secondary{background:transparent;color:#222;margin-top:9px}
+.onboard-error{min-height:18px;color:#a52b2b;font-size:12px;font-weight:800;margin:-5px 0 8px}
+.terms-copy{font-size:12px;line-height:1.55}.terms-copy h2{font-size:18px;margin:0 0 8px}.terms-copy h3{font-size:13px;margin:16px 0 5px}.terms-copy p{margin:7px 0}.terms-copy ul{padding-left:18px;margin:6px 0}.terms-box{max-height:calc(100dvh - 250px);overflow:auto;border:1px solid #c9c2b4;border-radius:14px;background:#fff;padding:15px}.onboard-hidden{display:none!important}
+.profile-chip{position:absolute;right:10px;top:62px;font-size:10px;font-weight:800;background:#eef1e2;border:1px solid #222;border-radius:10px;padding:4px 7px;z-index:3;max-width:45%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media(max-width:430px){.onboard-card{border-radius:20px}.onboard-head{padding:18px}.onboard-body{padding:15px}.terms-box{max-height:calc(100dvh - 235px)}}
 </style>
 </head>
 <body>
 
+<div class="onboard-overlay" id="onboardOverlay">
+  <div class="onboard-card" role="dialog" aria-modal="true" aria-labelledby="onboardTitle">
+    <div class="onboard-head">
+      <h1 id="onboardTitle">Welcome to Doki Duck AI</h1>
+      <p id="onboardSubtitle">First, let Doki know who is knocking on the pond.</p>
+    </div>
+    <div class="onboard-body" id="profileStep">
+      <label for="profileUsername">Username</label>
+      <input id="profileUsername" type="text" maxlength="24" autocomplete="nickname" placeholder="Choose a username">
+      <label for="profileAge">Age</label>
+      <input id="profileAge" type="number" inputmode="numeric" min="1" max="120" placeholder="Your age">
+      <div class="onboard-error" id="profileError"></div>
+      <button class="onboard-primary" id="profileContinue">Continue</button>
+    </div>
+    <div class="onboard-body onboard-hidden" id="termsStep">
+      <div class="terms-box terms-copy">
+        <h2>Terms &amp; Conditions</h2>
+        <p><strong>Last updated:</strong> 17 August 2026.</p>
+        <p>Welcome to Doki Duck AI, a small experimental entertainment and learning application. By continuing, you acknowledge that this is a prototype made for personal use and friendly testing. Doki may take grammar seriously for approximately three seconds and then return to being a duck.</p>
+        <h3>1. Your profile</h3>
+        <p>You may provide a username and age when first entering the application. The username you choose may be displayed inside the application and, if a shared leaderboard is later enabled, may be visible to other players together with permitted game statistics such as XP, level or achievements.</p>
+        <h3>2. Saved progress</h3>
+        <p>The application may save game and learning progress on the device, including your username, age, Pond Points, XP, worms, level, growth stage, achievements, message progress and feeding state. Clearing application storage, browser data or uninstalling the application may remove locally stored progress.</p>
+        <h3>3. Leaderboards and public game information</h3>
+        <p>If a shared leaderboard is enabled, selected profile information and game statistics may be visible to other players. Do not choose a username that contains information you do not want other players to see. The application will not intentionally ask you for passwords, payment credentials or secret access keys.</p>
+        <h3>4. Third-party images and resources</h3>
+        <p>The application may display images, illustrations, fonts, libraries or other resources obtained from third-party sources. The developer does not claim ownership of material that belongs to another rights holder. Where appropriate, third-party material may be credited or removed upon legitimate request.</p>
+        <h3>5. Copyright</h3>
+        <p>Original Doki Duck AI artwork, code and creative material remain the property of their respective rights holders unless otherwise stated. Nothing in this document grants a user ownership of such material. All rights reserved where applicable.</p>
+        <h3>6. No warranty</h3>
+        <p>This application is provided as an experimental prototype. Features may break, disappear, behave strangely, or occasionally make Doki look more confident than the code deserves. The application is provided without a promise that every feature will always work.</p>
+        <h3>7. Learning information</h3>
+        <p>Grammar explanations, quizzes and other educational material are intended for learning and entertainment. They should not be treated as professional academic, legal or linguistic advice.</p>
+        <h3>8. Satirical references</h3>
+        <p>Any references to products, services or companies such as ChatGPT or Claude are used only as jokes, satire or fictional comparisons. Doki Duck AI does not claim to be affiliated with, endorsed by, sponsored by, or officially connected with those companies or services. Such references are not intended to defame any person, company or product.</p>
+        <h3>9. Prank and sarcastic content</h3>
+        <p>Doki Duck AI may intentionally use sarcasm, jokes, exaggerated reactions and fictional insults as part of its character. These are intended as entertainment and should not be interpreted as factual statements about the player.</p>
+        <h3>10. Your responsibility</h3>
+        <p>Please do not enter sensitive personal information into the chat. You are responsible for the username and other information you choose to provide. If you are testing the application with another person, make sure you have their permission before sharing their personal information.</p>
+        <h3>11. Changes</h3>
+        <p>These terms may be updated as the prototype changes. If important data or sharing behavior changes, the application may ask you to review the terms again.</p>
+        <h3>12. The legally important duck clause</h3>
+        <p>By continuing, you understand that Doki is a duck, not your lawyer, therapist, accountant, academic examiner or emergency contact. Doki accepts bread. Doki does not accept responsibility for the consequences of your terrible grammar.</p>
+        <p><strong>By selecting “Accept Cookies &amp; Breads”, you confirm that you have read and understood this prototype notice and agree to continue.</strong></p>
+      </div>
+      <div class="onboard-error" id="termsError"></div>
+      <button class="onboard-primary" id="acceptTerms">Accept Cookies &amp; Breads</button>
+      <button class="onboard-secondary" id="rejectTerms">Reject (this is not necessary)</button>
+    </div>
+  </div>
+</div>
+
 <div class="phone" id="phone">
+  <div class="profile-chip onboard-hidden" id="profileChip"></div>
 
   <div class="toolbar">
     <div class="tabdot"></div>
@@ -402,6 +467,89 @@
 
 <script>
 (function(){
+  const STORAGE_KEY = 'dokiDuckAI.player.v1';
+  const DEFAULT_PLAYER = {
+    username: '', age: '', acceptedTerms: false,
+    pondPoints: 0, xp: 0, worms: 0, dokiLevel: 1, dokiStage: 1,
+    achievements: [], wordProgress: 0, messagesUsed: 0, needsFeeding: false
+  };
+  let player = loadPlayer();
+
+  function loadPlayer(){
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if(!raw) return {...DEFAULT_PLAYER};
+      return {...DEFAULT_PLAYER, ...JSON.parse(raw)};
+    } catch(e){ return {...DEFAULT_PLAYER}; }
+  }
+  function savePlayer(){
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(player)); } catch(e) {}
+  }
+
+  const onboardOverlay = document.getElementById('onboardOverlay');
+  const profileStep = document.getElementById('profileStep');
+  const termsStep = document.getElementById('termsStep');
+  const profileUsername = document.getElementById('profileUsername');
+  const profileAge = document.getElementById('profileAge');
+  const profileError = document.getElementById('profileError');
+  const termsError = document.getElementById('termsError');
+  const profileContinue = document.getElementById('profileContinue');
+  const acceptTerms = document.getElementById('acceptTerms');
+  const rejectTerms = document.getElementById('rejectTerms');
+  const profileChip = document.getElementById('profileChip');
+
+  function showApp(){
+    onboardOverlay.classList.add('onboard-hidden');
+    profileChip.textContent = player.username ? '👤 ' + player.username : '';
+    profileChip.classList.toggle('onboard-hidden', !player.username);
+    savePlayer();
+  }
+  function startOnboarding(){
+    onboardOverlay.classList.remove('onboard-hidden');
+    profileStep.classList.remove('onboard-hidden');
+    termsStep.classList.add('onboard-hidden');
+    profileUsername.value = player.username || '';
+    profileAge.value = player.age || '';
+    profileUsername.focus();
+  }
+  function openTerms(){
+    const username = profileUsername.value.trim().replace(/\s+/g,' ');
+    const age = Number(profileAge.value);
+    if(username.length < 2 || username.length > 24){
+      profileError.textContent = 'Please choose a username between 2 and 24 characters.';
+      return;
+    }
+    if(!Number.isInteger(age) || age < 1 || age > 120){
+      profileError.textContent = 'Please enter a valid age.';
+      return;
+    }
+    profileError.textContent = '';
+    player.username = username;
+    player.age = age;
+    profileStep.classList.add('onboard-hidden');
+    termsStep.classList.remove('onboard-hidden');
+    document.getElementById('onboardTitle').textContent = 'The Extremely Serious Duck Agreement';
+    document.getElementById('onboardSubtitle').textContent = 'Please scroll through the legal-looking duck paperwork.';
+    termsStep.querySelector('.terms-box').scrollTop = 0;
+  }
+  function accept(){
+    player.acceptedTerms = true;
+    termsError.textContent = '';
+    savePlayer();
+    showApp();
+  }
+  profileContinue.addEventListener('click', openTerms);
+  profileUsername.addEventListener('keydown', e=>{ if(e.key==='Enter') profileAge.focus(); });
+  profileAge.addEventListener('keydown', e=>{ if(e.key==='Enter') openTerms(); });
+  acceptTerms.addEventListener('click', accept);
+  rejectTerms.addEventListener('click', ()=>{ termsError.textContent = 'Doki has reviewed your rejection and filed it under “unnecessary paperwork”.'; });
+
+  if(player.acceptedTerms && player.username){ showApp(); }
+  else startOnboarding();
+
+  window.dokiPlayer = player;
+  window.dokiSavePlayer = savePlayer;
+
   const phone = document.getElementById('phone');
   const messagesEl = document.getElementById('messages');
   const inputEl = document.getElementById('userInput');
@@ -475,12 +623,16 @@
       inputEl.value = '';
       meterEl.innerHTML = '&nbsp;';
       setTimeout(function(){
+        player.messagesUsed = (player.messagesUsed || 0) + 1; savePlayer();
         addRow(DENIED_MESSAGE, 'bot', true);
       }, 280);
       return;
     }
 
     addRow(raw, 'user');
+    player.messagesUsed = (player.messagesUsed || 0) + 1;
+    player.wordProgress = (player.wordProgress || 0) + countWords(raw);
+    savePlayer();
     const count = quackCountFor(raw);
     inputEl.value = '';
     meterEl.innerHTML = '&nbsp;';
