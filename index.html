@@ -369,13 +369,13 @@
         <p><strong>Last updated:</strong> 17 August 2026.</p>
         <p>Welcome to Doki Duck AI, a small experimental entertainment and learning application. By continuing, you acknowledge that this is a prototype made for personal use and friendly testing. Doki may take grammar seriously for approximately three seconds and then return to being a duck.</p>
         <h3>1. Your profile</h3>
-        <p>You may provide a username and age when first entering the application. The username you choose may be displayed inside the application and, if a shared leaderboard is later enabled, may be visible to other players together with selected public profile information and permitted game statistics such as XP, level or achievements. Your age will not be publicly displayed on the leaderboard unless a later version explicitly implements and discloses that behavior.</p>
+        <p>You may provide a username and age when first entering the application. The username you choose may be displayed inside the application and, if a shared leaderboard is later enabled, may be visible to other players together with permitted game statistics such as XP, level or achievements.</p>
         <h3>2. Saved progress</h3>
         <p>The application may save game and learning progress on the device, including your username, age, Pond Points, XP, worms, level, growth stage, achievements, message progress and feeding state. Clearing application storage, browser data or uninstalling the application may remove locally stored progress.</p>
         <h3>3. Leaderboards and public game information</h3>
         <p>If a shared leaderboard is enabled, selected profile information and game statistics may be visible to other players. Do not choose a username that contains information you do not want other players to see. The application will not intentionally ask you for passwords, payment credentials or secret access keys.</p>
         <h3>4. Third-party images and resources</h3>
-        <p>The application may display images, illustrations, fonts, libraries or other resources obtained from third-party sources. The developer does not claim ownership of material that belongs to another rights holder and is not responsible for third-party material. Where appropriate, third-party material may be credited or removed upon legitimate request. Copyright and other rights remain with their respective owners.</p>
+        <p>The application may display images, illustrations, fonts, libraries or other resources obtained from third-party sources. The developer does not claim ownership of material that belongs to another rights holder. Where appropriate, third-party material may be credited or removed upon legitimate request.</p>
         <h3>5. Copyright</h3>
         <p>Original Doki Duck AI artwork, code and creative material remain the property of their respective rights holders unless otherwise stated. Nothing in this document grants a user ownership of such material. All rights reserved where applicable.</p>
         <h3>6. No warranty</h3>
@@ -392,10 +392,10 @@
         <p>These terms may be updated as the prototype changes. If important data or sharing behavior changes, the application may ask you to review the terms again.</p>
         <h3>12. The legally important duck clause</h3>
         <p>By continuing, you understand that Doki is a duck, not your lawyer, therapist, accountant, academic examiner or emergency contact. Doki accepts bread. Doki does not accept responsibility for the consequences of your terrible grammar.</p>
-        <p><strong>By selecting “ACCEPT COOKIES &amp; BREADS”, you confirm that you have read and understood this prototype notice and agree to continue.</strong></p>
+        <p><strong>By selecting “Accept Cookies &amp; Breads”, you confirm that you have read and understood this prototype notice and agree to continue.</strong></p>
       </div>
       <div class="onboard-error" id="termsError"></div>
-      <button class="onboard-primary" id="acceptTerms">ACCEPT COOKIES &amp; BREADS</button>
+      <button class="onboard-primary" id="acceptTerms">Accept Cookies &amp; Breads</button>
       <button class="onboard-secondary" id="rejectTerms">Reject (this is not necessary)</button>
     </div>
   </div>
@@ -465,6 +465,9 @@
 
 </div>
 
+<script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-database-compat.js"></script>
 <script>
 (function(){
   const STORAGE_KEY = 'dokiDuckAI.player.v1';
@@ -475,6 +478,23 @@
   };
   let player = loadPlayer();
 
+  // PASS 2A: Firebase anonymous identity + cloud player sync.
+  const FIREBASE_CONFIG = {
+    apiKey: "AIzaSyDfeMzEi8KkyOBcGlnsWto_3g9npBMpdyE",
+    authDomain: "doki-duck-ai.firebaseapp.com",
+    projectId: "doki-duck-ai",
+    storageBucket: "doki-duck-ai.firebasestorage.app",
+    messagingSenderId: "697451070915",
+    appId: "1:697451070915:web:297e53688065db85746976",
+    measurementId: "G-H5R9XZBLFY",
+    databaseURL: "https://doki-duck-ai-default-rtdb.asia-southeast1.firebasedatabase.app"
+  };
+
+  let firebaseReady = false;
+  let firebaseAuthUser = null;
+  let cloudSyncTimer = null;
+  let cloudSyncPromise = Promise.resolve();
+
   function loadPlayer(){
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -482,9 +502,85 @@
       return {...DEFAULT_PLAYER, ...JSON.parse(raw)};
     } catch(e){ return {...DEFAULT_PLAYER}; }
   }
+
+  function cloudPlayerData(){
+    return {
+      username: String(player.username || '').trim(),
+      xp: Math.max(0, Number(player.xp) || 0),
+      dokiLevel: Math.max(1, Number(player.dokiLevel) || 1),
+      achievementCount: Array.isArray(player.achievements) ? player.achievements.length : 0
+    };
+  }
+
+  function syncCloudPlayerNow(){
+    if(!firebaseReady || !firebaseAuthUser || !player.acceptedTerms || !player.username) return;
+    const data = cloudPlayerData();
+    const ref = firebase.database().ref('players/' + firebaseAuthUser.uid);
+    cloudSyncPromise = ref.set(data).catch(function(error){
+      console.warn('Doki Duck AI: Firebase player sync failed; local progress remains available.', error);
+    });
+  }
+
+  function scheduleCloudSync(){
+    if(cloudSyncTimer) clearTimeout(cloudSyncTimer);
+    cloudSyncTimer = setTimeout(function(){
+      cloudSyncTimer = null;
+      syncCloudPlayerNow();
+    }, 350);
+  }
+
   function savePlayer(){
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(player)); } catch(e) {}
+    scheduleCloudSync();
   }
+
+  async function initFirebaseIdentity(){
+    try {
+      if(!window.firebase) throw new Error('Firebase SDK did not load.');
+      if(!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+
+      const auth = firebase.auth();
+      const database = firebase.database();
+      void database;
+
+      try {
+        await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+      } catch(e) {
+        console.warn('Doki Duck AI: Firebase auth persistence could not be configured.', e);
+      }
+
+      await auth.signInAnonymously();
+      firebaseReady = true;
+      firebaseAuthUser = auth.currentUser;
+
+      if(!firebaseAuthUser) throw new Error('Anonymous Firebase user was not available.');
+
+      // Restore only public leaderboard fields from an existing cloud record.
+      // Terms acceptance and age remain local-only.
+      try {
+        const snapshot = await firebase.database().ref('players/' + firebaseAuthUser.uid).once('value');
+        const remote = snapshot.val();
+        if(remote && player.acceptedTerms && !player.username){
+          if(typeof remote.username === 'string') player.username = remote.username;
+          if(Number.isFinite(Number(remote.xp))) player.xp = Number(remote.xp);
+          if(Number.isFinite(Number(remote.dokiLevel))) player.dokiLevel = Math.max(1, Number(remote.dokiLevel));
+          savePlayer();
+        }
+      } catch(e) {
+        console.warn('Doki Duck AI: Cloud player read failed; continuing with local data.', e);
+      }
+
+      if(player.acceptedTerms && player.username) syncCloudPlayerNow();
+      console.info('Doki Duck AI: Firebase anonymous identity ready.', firebaseAuthUser.uid);
+    } catch(error) {
+      firebaseReady = false;
+      firebaseAuthUser = null;
+      console.warn('Doki Duck AI: Firebase is unavailable. Continuing in local-only mode.', error);
+    }
+  }
+
+  // Start Firebase in the background. The app never waits for it to remain usable.
+  initFirebaseIdentity();
 
   const onboardOverlay = document.getElementById('onboardOverlay');
   const profileStep = document.getElementById('profileStep');
