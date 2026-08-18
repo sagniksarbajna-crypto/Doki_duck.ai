@@ -1159,6 +1159,10 @@ import { binaryInlined } from 'https://unpkg.com/harper.js@2.4.0/dist/binaryInli
     syncAvailableAchievements();
     savePlayer();
     const count = quackCountFor(raw);
+
+    // Clear the input BEFORE setting the scan state. The input handler normally
+    // clears the meter when the field becomes empty; doing it in the opposite
+    // order was silently erasing the grammar result in the previous build.
     inputEl.value = '';
     meterEl.innerHTML = '<span class="grammar-scan-status">Grammar scan…</span>';
 
