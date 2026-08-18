@@ -366,8 +366,49 @@
     .leader-level{display:none}
   }
 
+  /* PASS 2B: trophy room / achievement UI */
+  .achievement-launch{
+    width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;
+    border:1.5px solid #c8c0b1;background:#fff;border-radius:15px;padding:12px 13px;
+    cursor:pointer;text-align:left;color:#222;
+    transition:transform .16s ease,box-shadow .2s ease,border-color .2s ease,background .2s ease;
+  }
+  .achievement-launch:hover{transform:translateY(-1px);box-shadow:0 8px 20px rgba(0,0,0,.08);border-color:#707c5c}
+  .achievement-launch:active{transform:translateY(1px) scale(.99)}
+  .achievement-launch-copy{min-width:0}
+  .achievement-launch-title{font-weight:900;font-size:13px}
+  .achievement-launch-note{font-size:10px;opacity:.65;margin-top:2px}
+  .achievement-launch-arrow{font-size:20px;font-weight:900;flex-shrink:0}
+  .trophy-room{display:flex;flex-direction:column;gap:11px}
+  .trophy-summary{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border-radius:14px;background:#eef1e2;border:1px solid #c8d0ad}
+  .trophy-summary strong{font-size:13px}
+  .trophy-summary span{font-size:11px;opacity:.72}
+  .achievement-list{display:flex;flex-direction:column;gap:9px}
+  .achievement-card{display:grid;grid-template-columns:54px minmax(0,1fr) auto;align-items:center;gap:10px;padding:11px;border:1.5px solid #d0c7b8;border-radius:15px;background:#fff;position:relative;overflow:hidden;transition:transform .18s ease,box-shadow .2s ease,border-color .2s ease}
+  .achievement-card.earned{border-color:#b7bf92;background:linear-gradient(135deg,#fff,#f4f7e8)}
+  .achievement-card.locked{background:#f7f4ee;opacity:.78}
+  .achievement-card:hover{transform:translateY(-1px);box-shadow:0 8px 18px rgba(0,0,0,.06)}
+  .achievement-badge{width:48px;height:48px;border-radius:15px;display:flex;align-items:center;justify-content:center;border:2px solid #222;background:#e8e2cf;position:relative;overflow:hidden}
+  .achievement-card.earned .achievement-badge{background:radial-gradient(circle at 35% 25%,#ffe58a 0%,#f5c242 52%,#d69513 100%);box-shadow:inset 0 0 0 2px rgba(255,255,255,.35),0 5px 12px rgba(212,166,40,.23)}
+  .achievement-card.locked .achievement-badge{filter:grayscale(1);opacity:.64}
+  .achievement-badge svg{width:39px;height:39px}
+  .achievement-info{min-width:0}
+  .achievement-title{font-weight:900;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .achievement-desc{font-size:10.5px;line-height:1.35;margin-top:3px;opacity:.7}
+  .achievement-status{font-size:10px;font-weight:900;white-space:nowrap}
+  .achievement-card.earned .achievement-status{color:#5d6e45}
+  .achievement-card.locked .achievement-status{color:#8a857d}
+  .achievement-ribbon{position:absolute;right:-26px;top:7px;transform:rotate(36deg);font-size:8px;font-weight:900;padding:3px 25px;background:#707c5c;color:#fff;letter-spacing:.5px}
+  .trophy-room-intro{font-size:11px;line-height:1.45;opacity:.72;margin:0 0 2px}
+  .trophy-locked-note{font-size:10px;line-height:1.4;opacity:.62;margin:0}
+  .trophy-duck-eye{fill:#221f18}.trophy-duck-beak{fill:#e29227;stroke:#241f18;stroke-width:1.7}
+  @keyframes trophyPop{0%{transform:scale(.82) rotate(-4deg);opacity:0}55%{transform:scale(1.06) rotate(2deg);opacity:1}100%{transform:scale(1) rotate(0)}}
+  .achievement-card.just-earned{animation:trophyPop .55s cubic-bezier(.2,.9,.25,1.15)}
+  @media(max-width:430px){.achievement-card{grid-template-columns:48px minmax(0,1fr) auto;padding:10px}.achievement-badge{width:42px;height:42px;border-radius:13px}.achievement-badge svg{width:34px;height:34px}}
+
   @media (prefers-reduced-motion: reduce){
-    .send-btn, .sunglasses, .phone{ transition:none; }
+    .send-btn, .sunglasses, .phone, .achievement-launch, .achievement-card{ transition:none; }
+    .achievement-card.just-earned{animation:none}
   }
 
 /* PASS 1: first-launch profile + persistent local player state */
@@ -669,6 +710,7 @@
   function accept(){
     player.acceptedTerms = true;
     termsError.textContent = '';
+    syncAvailableAchievements();
     savePlayer();
     showApp();
   }
@@ -694,6 +736,25 @@
   const themeColorMeta = document.getElementById('themeColorMeta');
 
   const leaderboardBtn = document.getElementById('leaderboardBtn');
+
+  const ACHIEVEMENTS = [
+    {id:'welcome', title:'Welcome to the Pond', desc:"Finish the first-launch setup and join Doki's pond.", type:'current'},
+    {id:'first-chat', title:'First Conversation', desc:'Send your first message to Doki.', type:'current'},
+    {id:'word-wanderer', title:'Word Wanderer', desc:'Use 100 words in your conversations.', type:'current'},
+    {id:'pond-collector', title:'Pond Collector', desc:'Earn your first Pond Point.', type:'pond'},
+    {id:'worm-hunter', title:'Worm Hunter', desc:'Collect your first worm.', type:'worm'},
+    {id:'grammar-starter', title:'Grammar Starter', desc:'Complete your first grammar correction.', type:'future'},
+    {id:'sharp-beak', title:'Sharp Beak', desc:'Get a perfect score in a grammar challenge.', type:'future'},
+    {id:'quick-thinker', title:'Quick Thinker', desc:'Answer a quiz correctly.', type:'future'},
+    {id:'learning-streak', title:'Learning Streak', desc:'Keep a learning streak alive across consecutive days.', type:'future'},
+    {id:'pond-treasure', title:'Pond Treasure', desc:'Reach a larger Pond Point milestone.', type:'future'},
+    {id:'doki-apprentice', title:'Doki Apprentice', desc:'Reach the Apprentice progression milestone.', type:'future'},
+    {id:'doki-master', title:'Doki Master', desc:'Reach the higher Doki mastery milestone.', type:'future'},
+    {id:'growing-doki', title:'Growing Doki', desc:'Unlock the next prepared Doki growth stage.', type:'future'},
+    {id:'super-duck', title:'Super Duck', desc:'Reach the final mature/legendary Doki growth stage.', type:'future'},
+    {id:'pond-legend', title:'Pond Legend', desc:"Become a top-tier learner in Doki's pond.", type:'future'}
+  ];
+
   const profileModal = document.getElementById('profileModal');
   const profileModalClose = document.getElementById('profileModalClose');
   const leaderboardModal = document.getElementById('leaderboardModal');
@@ -705,10 +766,53 @@
   const profilePondValue = document.getElementById('profilePondValue');
   const profileAchievementValue = document.getElementById('profileAchievementValue');
   const profileProgressValue = document.getElementById('profileProgressValue');
+  const achievementsModal = document.getElementById('achievementsModal');
+  const achievementsModalClose = document.getElementById('achievementsModalClose');
+  const openAchievementsBtn = document.getElementById('openAchievementsBtn');
+  const achievementList = document.getElementById('achievementList');
+  const achievementSummaryCount = document.getElementById('achievementSummaryCount');
   let leaderboardUnsubscribe = null;
 
+  function achievementEarned(id){
+    if(Array.isArray(player.achievements) && player.achievements.indexOf(id) !== -1) return true;
+    switch(id){
+      case 'welcome': return !!player.acceptedTerms;
+      case 'first-chat': return Number(player.messagesUsed) >= 1;
+      case 'word-wanderer': return Number(player.wordProgress) >= 100;
+      case 'pond-collector': return Number(player.pondPoints) >= 1;
+      case 'worm-hunter': return Number(player.worms) >= 1;
+      default: return false;
+    }
+  }
+
+  function syncAvailableAchievements(){
+    if(!Array.isArray(player.achievements)) player.achievements = [];
+    let changed = false;
+    ACHIEVEMENTS.forEach(function(item){
+      if(achievementEarned(item.id) && player.achievements.indexOf(item.id) === -1){
+        player.achievements.push(item.id);
+        changed = true;
+      }
+    });
+    if(changed) savePlayer();
+    return changed;
+  }
+
+  function duckTrophySVG(earned){
+    const opacity = earned ? '1' : '.42';
+    return '<svg viewBox="0 0 64 64" aria-hidden="true">' +
+      '<path d="M19 13h26v13c0 10-5 16-13 16S19 36 19 26V13Z" fill="#f5c242" stroke="#241f18" stroke-width="2" opacity="'+opacity+'"/>' +
+      '<path d="M19 19H9c0 9 5 13 13 11M45 19h10c0 9-5 13-13 11" fill="none" stroke="#241f18" stroke-width="3" stroke-linecap="round" opacity="'+opacity+'"/>' +
+      '<path d="M25 42h14v7H25z" fill="#707c5c" stroke="#241f18" stroke-width="2" opacity="'+opacity+'"/>' +
+      '<path d="M21 50h22v5H21z" fill="#e29227" stroke="#241f18" stroke-width="2" opacity="'+opacity+'"/>' +
+      '<circle cx="27" cy="24" r="2.2" class="trophy-duck-eye" opacity="'+opacity+'"/><circle cx="37" cy="24" r="2.2" class="trophy-duck-eye" opacity="'+opacity+'"/>' +
+      '<path d="M30 28h4l-2 3Z" class="trophy-duck-beak" opacity="'+opacity+'"/>' +
+      '<path d="M24 33c5 2 11 2 16 0" fill="none" stroke="#241f18" stroke-width="2" stroke-linecap="round" opacity="'+opacity+'"/>' +
+      '</svg>';
+  }
 
   function refreshProfileModal(){
+    syncAvailableAchievements();
     profileNameValue.textContent = player.username || '—';
     profileXpValue.textContent = String(Math.max(0, Number(player.xp) || 0));
     profileLevelValue.textContent = String(Math.max(1, Number(player.dokiLevel) || 1));
@@ -717,11 +821,36 @@
     profileProgressValue.textContent = String(Math.max(0, Number(player.messagesUsed) || 0)) + ' messages';
   }
 
+  function renderAchievements(){
+    syncAvailableAchievements();
+    const earnedCount = Array.isArray(player.achievements) ? player.achievements.length : 0;
+    achievementSummaryCount.textContent = earnedCount + ' / ' + ACHIEVEMENTS.length + ' trophies earned';
+    achievementList.innerHTML = '';
+    ACHIEVEMENTS.forEach(function(item){
+      const earned = player.achievements.indexOf(item.id) !== -1;
+      const card = document.createElement('div');
+      card.className = 'achievement-card ' + (earned ? 'earned' : 'locked');
+      card.innerHTML = '<div class="achievement-badge">' + duckTrophySVG(earned) + '</div>' +
+        '<div class="achievement-info"><div class="achievement-title">' + item.title + '</div><div class="achievement-desc">' + item.desc + '</div></div>' +
+        '<div class="achievement-status">' + (earned ? 'EARNED' : 'LOCKED') + '</div>' +
+        (earned ? '<div class="achievement-ribbon">QUACKED</div>' : '');
+      achievementList.appendChild(card);
+    });
+  }
+
   function setModalOpen(modal, open){
     if(!modal) return;
     modal.classList.toggle('hidden', !open);
     modal.setAttribute('aria-hidden', open ? 'false' : 'true');
   }
+
+  function openAchievements(){
+    closeLeaderboard();
+    setModalOpen(profileModal, false);
+    renderAchievements();
+    setModalOpen(achievementsModal, true);
+  }
+  function closeAchievements(){ setModalOpen(achievementsModal, false); }
 
   function closeLeaderboard(){
     if(leaderboardUnsubscribe && firebaseAuthUser && window.firebase){
@@ -861,7 +990,7 @@
       inputEl.value = '';
       meterEl.innerHTML = '&nbsp;';
       setTimeout(function(){
-        player.messagesUsed = (player.messagesUsed || 0) + 1; savePlayer();
+        player.messagesUsed = (player.messagesUsed || 0) + 1; syncAvailableAchievements(); savePlayer();
         addRow(DENIED_MESSAGE, 'bot', true);
       }, 280);
       return;
@@ -870,6 +999,7 @@
     addRow(raw, 'user');
     player.messagesUsed = (player.messagesUsed || 0) + 1;
     player.wordProgress = (player.wordProgress || 0) + countWords(raw);
+    syncAvailableAchievements();
     savePlayer();
     const count = quackCountFor(raw);
     inputEl.value = '';
@@ -927,17 +1057,22 @@
 
   profileChip.addEventListener('click', function(){
     closeLeaderboard();
+    closeAchievements();
     refreshProfileModal();
     setModalOpen(profileModal, true);
   });
   profileModalClose.addEventListener('click', function(){ setModalOpen(profileModal, false); });
+  openAchievementsBtn.addEventListener('click', openAchievements);
+  achievementsModalClose.addEventListener('click', closeAchievements);
   leaderboardBtn.addEventListener('click', openLeaderboard);
   leaderboardModalClose.addEventListener('click', closeLeaderboard);
   profileModal.addEventListener('click', function(e){ if(e.target === profileModal) setModalOpen(profileModal, false); });
+  achievementsModal.addEventListener('click', function(e){ if(e.target === achievementsModal) closeAchievements(); });
   leaderboardModal.addEventListener('click', function(e){ if(e.target === leaderboardModal) closeLeaderboard(); });
   document.addEventListener('keydown', function(e){
     if(e.key === 'Escape'){
       setModalOpen(profileModal, false);
+      closeAchievements();
       closeLeaderboard();
     }
   });
@@ -963,7 +1098,26 @@
         <div class="stat-card"><div class="stat-label">Achievements</div><div class="stat-value" id="profileAchievementValue">0</div></div>
         <div class="stat-card"><div class="stat-label">Local Progress</div><div class="stat-value" id="profileProgressValue">0 messages</div></div>
       </div>
+      <button class="achievement-launch" id="openAchievementsBtn" type="button">
+        <span class="achievement-launch-copy"><span class="achievement-launch-title">🏆 Doki's Trophy Room</span><span class="achievement-launch-note">View earned and locked achievements</span></span>
+        <span class="achievement-launch-arrow">›</span>
+      </button>
       <p class="modal-note">Cloud leaderboard data is limited to your username, XP, Doki level and achievement count. Your age remains local.</p>
+    </div>
+  </section>
+</div>
+
+<div class="modal-backdrop hidden" id="achievementsModal" aria-hidden="true">
+  <section class="data-modal" role="dialog" aria-modal="true" aria-labelledby="achievementsModalTitle">
+    <div class="data-modal-head">
+      <div class="data-modal-title" id="achievementsModalTitle">🏆 Doki's Trophy Room</div>
+      <button class="modal-close" id="achievementsModalClose" type="button" aria-label="Close achievements">×</button>
+    </div>
+    <div class="data-modal-body">
+      <div class="trophy-summary"><strong id="achievementSummaryCount">0 / 15 trophies earned</strong><span>More unlock as Doki grows.</span></div>
+      <p class="trophy-room-intro">Earned trophies get their own little duck attitude. Locked ones are waiting patiently. Doki is not.</p>
+      <div id="achievementList" class="achievement-list"></div>
+      <p class="trophy-locked-note">Some trophies are intentionally tied to future systems such as grammar learning, quizzes, feeding and Doki growth. They remain locked until those systems exist and the requirement is genuinely met.</p>
     </div>
   </section>
 </div>
