@@ -330,6 +330,42 @@
   ::-webkit-scrollbar-thumb{background:#D9CDA9; border-radius:8px;}
   .phone.incognito ::-webkit-scrollbar-thumb{ background:#454358; }
 
+
+  /* PASS 2B: shared leaderboard + compact player profile */
+  .header-tools{margin-left:auto;display:flex;align-items:center;gap:7px;flex-shrink:0}
+  .profile-chip{position:static;display:block!important;max-width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:10px;font-weight:800;background:#eef1e2;color:#222;border:1px solid #222;border-radius:10px;padding:6px 8px;z-index:3;cursor:pointer}
+  .profile-chip.onboard-hidden{display:none!important}
+  .leaderboard-btn{width:34px;height:34px;border:2px solid #222;border-radius:50%;background:#eef1e2;color:#222;font-size:16px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+  .phone.incognito .profile-chip,.phone.incognito .leaderboard-btn{background:#34323f;color:#eee;border-color:#66627c}
+  .modal-backdrop{position:fixed;inset:0;z-index:9000;background:rgba(15,17,13,.68);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:14px}
+  .modal-backdrop.hidden{display:none!important}
+  .data-modal{width:min(100%,520px);max-height:calc(100dvh - 28px);background:#f7f2e7;color:#222;border:2px solid #222;border-radius:22px;box-shadow:0 18px 60px rgba(0,0,0,.38);overflow:hidden;display:flex;flex-direction:column}
+  .data-modal-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:16px 18px;background:#dfe7c9;border-bottom:1px solid #bbb}
+  .data-modal-title{font-family:'Baloo 2',sans-serif;font-weight:800;font-size:1.18rem}
+  .modal-close{width:34px;height:34px;border:2px solid #222;border-radius:50%;background:transparent;font-size:18px;cursor:pointer}
+  .data-modal-body{padding:14px 16px;overflow:auto}
+  .profile-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-bottom:14px}
+  .stat-card{background:#fff;border:1.5px solid #c8c0b1;border-radius:13px;padding:10px}
+  .stat-label{font-size:10px;text-transform:uppercase;letter-spacing:.6px;opacity:.65;font-weight:800}
+  .stat-value{font-size:17px;font-weight:900;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .leaderboard-list{display:flex;flex-direction:column;gap:7px}
+  .leader-row{display:grid;grid-template-columns:34px minmax(0,1fr) auto auto auto;align-items:center;gap:8px;background:#fff;border:1.5px solid #d0c7b8;border-radius:12px;padding:9px 10px}
+  .leader-row.me{border-color:#707c5c;box-shadow:0 0 0 2px rgba(112,124,92,.14)}
+  .leader-rank{font-weight:900;text-align:center}
+  .leader-name{font-weight:900;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .leader-xp,.leader-level,.leader-trophies{font-family:'JetBrains Mono',monospace;font-size:10px;white-space:nowrap}
+  .leader-empty,.leader-loading,.leader-error{padding:14px 10px;text-align:center;font-size:12px;opacity:.75}
+  .modal-note{font-size:11px;line-height:1.4;opacity:.7;margin:0 0 12px}
+  @media(max-width:430px){
+    .header{padding-right:10px}
+    .header-tools{gap:5px}
+    .profile-chip{max-width:88px;padding:6px 7px}
+    .leaderboard-btn{width:32px;height:32px;font-size:15px}
+    .data-modal{border-radius:18px}
+    .leader-row{grid-template-columns:30px minmax(0,1fr) auto}
+    .leader-level{display:none}
+  }
+
   @media (prefers-reduced-motion: reduce){
     .send-btn, .sunglasses, .phone{ transition:none; }
   }
@@ -371,7 +407,7 @@
         <h3>1. Your profile</h3>
         <p>You may provide a username and age when first entering the application. The username you choose may be displayed inside the application and, if a shared leaderboard is later enabled, may be visible to other players together with permitted game statistics such as XP, level or achievements.</p>
         <h3>2. Saved progress</h3>
-        <p>The application may save game and learning progress on the device, including your username, age, Pond Points, XP, worms, level, growth stage, achievements, message progress and feeding state. Clearing application storage, browser data or uninstalling the application may remove locally stored progress.</p>
+        <p>The application may save game and learning progress on the device, including your username, age, Pond Points, XP, worms, level, growth stage, achievements, message progress and feeding state. When the shared leaderboard is enabled, the leaderboard may also store your username, XP, Doki level and achievement count in Firebase so players can see shared rankings. Your age remains local and is not displayed on the leaderboard. Clearing application storage, browser data or uninstalling the application may remove locally stored progress.</p>
         <h3>3. Leaderboards and public game information</h3>
         <p>If a shared leaderboard is enabled, selected profile information and game statistics may be visible to other players. Do not choose a username that contains information you do not want other players to see. The application will not intentionally ask you for passwords, payment credentials or secret access keys.</p>
         <h3>4. Third-party images and resources</h3>
@@ -392,18 +428,16 @@
         <p>These terms may be updated as the prototype changes. If important data or sharing behavior changes, the application may ask you to review the terms again.</p>
         <h3>12. The legally important duck clause</h3>
         <p>By continuing, you understand that Doki is a duck, not your lawyer, therapist, accountant, academic examiner or emergency contact. Doki accepts bread. Doki does not accept responsibility for the consequences of your terrible grammar.</p>
-        <p><strong>By selecting “Accept Cookies &amp; Breads”, you confirm that you have read and understood this prototype notice and agree to continue.</strong></p>
+        <p><strong>By selecting “ACCEPT COOKIES &amp; BREADS”, you confirm that you have read and understood this prototype notice and agree to continue.</strong></p>
       </div>
       <div class="onboard-error" id="termsError"></div>
-      <button class="onboard-primary" id="acceptTerms">Accept Cookies &amp; Breads</button>
+      <button class="onboard-primary" id="acceptTerms">ACCEPT COOKIES &amp; BREADS</button>
       <button class="onboard-secondary" id="rejectTerms">Reject (this is not necessary)</button>
     </div>
   </div>
 </div>
 
 <div class="phone" id="phone">
-  <div class="profile-chip onboard-hidden" id="profileChip"></div>
-
   <div class="toolbar">
     <div class="tabdot"></div>
     <div class="tabdot"></div>
@@ -436,6 +470,10 @@
     <div class="header-text">
       <div class="header-name">Doki Duck AI</div>
       <div class="header-status" id="headerStatus"><span class="dot"></span> knows exactly one word</div>
+    </div>
+    <div class="header-tools">
+      <button class="profile-chip onboard-hidden" id="profileChip" type="button" aria-label="Open my Doki profile"></button>
+      <button class="leaderboard-btn" id="leaderboardBtn" type="button" aria-label="Open leaderboard" title="Leaderboard">🏆</button>
     </div>
   </div>
 
@@ -655,6 +693,110 @@
   const headerStatus = document.getElementById('headerStatus');
   const themeColorMeta = document.getElementById('themeColorMeta');
 
+  const leaderboardBtn = document.getElementById('leaderboardBtn');
+  const profileModal = document.getElementById('profileModal');
+  const profileModalClose = document.getElementById('profileModalClose');
+  const leaderboardModal = document.getElementById('leaderboardModal');
+  const leaderboardModalClose = document.getElementById('leaderboardModalClose');
+  const leaderboardList = document.getElementById('leaderboardList');
+  const profileNameValue = document.getElementById('profileNameValue');
+  const profileXpValue = document.getElementById('profileXpValue');
+  const profileLevelValue = document.getElementById('profileLevelValue');
+  const profilePondValue = document.getElementById('profilePondValue');
+  const profileAchievementValue = document.getElementById('profileAchievementValue');
+  const profileProgressValue = document.getElementById('profileProgressValue');
+  let leaderboardUnsubscribe = null;
+
+
+  function refreshProfileModal(){
+    profileNameValue.textContent = player.username || '—';
+    profileXpValue.textContent = String(Math.max(0, Number(player.xp) || 0));
+    profileLevelValue.textContent = String(Math.max(1, Number(player.dokiLevel) || 1));
+    profilePondValue.textContent = String(Math.max(0, Number(player.pondPoints) || 0));
+    profileAchievementValue.textContent = String(Array.isArray(player.achievements) ? player.achievements.length : 0);
+    profileProgressValue.textContent = String(Math.max(0, Number(player.messagesUsed) || 0)) + ' messages';
+  }
+
+  function setModalOpen(modal, open){
+    if(!modal) return;
+    modal.classList.toggle('hidden', !open);
+    modal.setAttribute('aria-hidden', open ? 'false' : 'true');
+  }
+
+  function closeLeaderboard(){
+    if(leaderboardUnsubscribe && firebaseAuthUser && window.firebase){
+      try { firebase.database().ref('players').off('value', leaderboardUnsubscribe); } catch(e) {}
+    }
+    leaderboardUnsubscribe = null;
+    setModalOpen(leaderboardModal, false);
+  }
+
+  function renderLeaderboard(snapshot){
+    const value = snapshot && snapshot.val ? snapshot.val() : null;
+    const entries = value && typeof value === 'object' ? Object.keys(value).map(function(uid){
+      const row = value[uid] || {};
+      return {
+        uid: uid,
+        username: typeof row.username === 'string' && row.username.trim() ? row.username.trim() : 'Anonymous Duck',
+        xp: Math.max(0, Number(row.xp) || 0),
+        dokiLevel: Math.max(1, Number(row.dokiLevel) || 1),
+        achievementCount: Math.max(0, Number(row.achievementCount) || 0)
+      };
+    }).sort(function(a,b){
+      return b.xp - a.xp || b.dokiLevel - a.dokiLevel || a.username.localeCompare(b.username);
+    }) : [];
+
+    if(!entries.length){
+      leaderboardList.innerHTML = '<div class="leader-empty">No players have arrived at the pond yet.</div>';
+      return;
+    }
+
+    leaderboardList.innerHTML = '';
+    entries.slice(0,50).forEach(function(entry, index){
+      const row = document.createElement('div');
+      row.className = 'leader-row' + (firebaseAuthUser && entry.uid === firebaseAuthUser.uid ? ' me' : '');
+      const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : String(index + 1);
+      row.innerHTML = '<div class="leader-rank">' + medal + '</div>' +
+        '<div class="leader-name"></div>' +
+        '<div class="leader-xp">' + entry.xp + ' XP</div>' +
+        '<div class="leader-level">Lv ' + entry.dokiLevel + '</div>' +
+        '<div class="leader-trophies">🏆 ' + entry.achievementCount + '</div>';
+      row.querySelector('.leader-name').textContent = entry.username;
+      leaderboardList.appendChild(row);
+    });
+  }
+
+  async function waitForFirebaseReady(timeoutMs){
+    const started = Date.now();
+    while(Date.now() - started < timeoutMs){
+      if(firebaseReady && firebaseAuthUser && window.firebase) return true;
+      await new Promise(function(resolve){ setTimeout(resolve, 100); });
+    }
+    return Boolean(firebaseReady && firebaseAuthUser && window.firebase);
+  }
+
+  async function openLeaderboard(){
+    setModalOpen(profileModal, false);
+    setModalOpen(leaderboardModal, true);
+    leaderboardList.innerHTML = '<div class="leader-loading">Loading the pond rankings…</div>';
+    const ready = await waitForFirebaseReady(3000);
+    if(!ready){
+      leaderboardList.innerHTML = '<div class="leader-error">The shared pond is unavailable right now. Local Doki progress is still safe.</div>';
+      return;
+    }
+    try {
+      const ref = firebase.database().ref('players');
+      leaderboardUnsubscribe = function(snapshot){ renderLeaderboard(snapshot); };
+      ref.on('value', leaderboardUnsubscribe, function(error){
+        console.warn('Doki Duck AI: Leaderboard read failed.', error);
+        leaderboardList.innerHTML = '<div class="leader-error">Doki could not fetch the rankings right now.</div>';
+      });
+    } catch(error){
+      console.warn('Doki Duck AI: Leaderboard open failed.', error);
+      leaderboardList.innerHTML = '<div class="leader-error">The shared pond is unavailable right now.</div>';
+    }
+  }
+
   const MAX_QUACKS = 15;
   const DENIED_MESSAGE = "Well done son, Doki Duck AI is not for you because you don't deserve it. You deserve cheap AI tools like ChatGPT or Claude.";
 
@@ -782,8 +924,64 @@
     setIncognito(!incognito);
   });
 
+
+  profileChip.addEventListener('click', function(){
+    closeLeaderboard();
+    refreshProfileModal();
+    setModalOpen(profileModal, true);
+  });
+  profileModalClose.addEventListener('click', function(){ setModalOpen(profileModal, false); });
+  leaderboardBtn.addEventListener('click', openLeaderboard);
+  leaderboardModalClose.addEventListener('click', closeLeaderboard);
+  profileModal.addEventListener('click', function(e){ if(e.target === profileModal) setModalOpen(profileModal, false); });
+  leaderboardModal.addEventListener('click', function(e){ if(e.target === leaderboardModal) closeLeaderboard(); });
+  document.addEventListener('keydown', function(e){
+    if(e.key === 'Escape'){
+      setModalOpen(profileModal, false);
+      closeLeaderboard();
+    }
+  });
+
 })();
 </script>
+
+
+
+<!-- PASS 2B: player profile + shared leaderboard -->
+<div class="modal-backdrop hidden" id="profileModal" aria-hidden="true">
+  <section class="data-modal" role="dialog" aria-modal="true" aria-labelledby="profileModalTitle">
+    <div class="data-modal-head">
+      <div class="data-modal-title" id="profileModalTitle">👤 My Doki Profile</div>
+      <button class="modal-close" id="profileModalClose" type="button" aria-label="Close profile">×</button>
+    </div>
+    <div class="data-modal-body">
+      <div class="profile-grid">
+        <div class="stat-card"><div class="stat-label">Username</div><div class="stat-value" id="profileNameValue">—</div></div>
+        <div class="stat-card"><div class="stat-label">XP</div><div class="stat-value" id="profileXpValue">0</div></div>
+        <div class="stat-card"><div class="stat-label">Doki Level</div><div class="stat-value" id="profileLevelValue">1</div></div>
+        <div class="stat-card"><div class="stat-label">Pond Points</div><div class="stat-value" id="profilePondValue">0</div></div>
+        <div class="stat-card"><div class="stat-label">Achievements</div><div class="stat-value" id="profileAchievementValue">0</div></div>
+        <div class="stat-card"><div class="stat-label">Local Progress</div><div class="stat-value" id="profileProgressValue">0 messages</div></div>
+      </div>
+      <p class="modal-note">Cloud leaderboard data is limited to your username, XP, Doki level and achievement count. Your age remains local.</p>
+    </div>
+  </section>
+</div>
+
+<div class="modal-backdrop hidden" id="leaderboardModal" aria-hidden="true">
+  <section class="data-modal" role="dialog" aria-modal="true" aria-labelledby="leaderboardModalTitle">
+    <div class="data-modal-head">
+      <div class="data-modal-title" id="leaderboardModalTitle">🏆 Pond Leaderboard</div>
+      <button class="modal-close" id="leaderboardModalClose" type="button" aria-label="Close leaderboard">×</button>
+    </div>
+    <div class="data-modal-body">
+      <p class="modal-note">Ranked by XP. Your age and Firebase UID are never displayed here.</p>
+      <div id="leaderboardList" class="leaderboard-list">
+        <div class="leader-loading">Loading the pond rankings…</div>
+      </div>
+    </div>
+  </section>
+</div>
 
 </body>
 </html>
