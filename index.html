@@ -647,33 +647,13 @@
   </section>
 </div>
 
-<script type="module">
-(function(){
-  // PASS 3A: local Harper grammar engine bootstrap.
-  // The main app remains usable even if the remote module fails to load.
-  window.dokiHarper = { ready:false, linter:null, error:null };
-  window.dokiHarperReady = (async function(){
-    try {
-      const [{ WorkerLinter, binaryInlined }] = await Promise.all([
-        import('https://unpkg.com/harper.js@2.4.0/dist/index.js'),
-        import('https://unpkg.com/harper.js@2.4.0/dist/binaryInlined.js')
-      ]);
-      const linter = new WorkerLinter({ binary: binaryInlined });
-      window.dokiHarper.linter = linter;
-      window.dokiHarper.ready = true;
-      return linter;
-    } catch (error) {
-      window.dokiHarper.error = error;
-      console.warn('Doki Duck AI: Local grammar engine unavailable. Chat will continue normally.', error);
-      return null;
-    }
-  })();
-})();
-</script>
 <script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-database-compat.js"></script>
-<script>
+<script type="module">
+import { WorkerLinter } from 'https://unpkg.com/harper.js@2.4.0/dist/index.js';
+import { binaryInlined } from 'https://unpkg.com/harper.js@2.4.0/dist/binaryInlined.js';
+
 (function(){
   const STORAGE_KEY = 'dokiDuckAI.player.v1';
   const DEFAULT_PLAYER = {
@@ -682,6 +662,19 @@
     achievements: [], wordProgress: 0, messagesUsed: 0, needsFeeding: false
   };
   let player = loadPlayer();
+
+  // PASS 3A: local Harper grammar engine. Keep initialization off the chat path.
+  window.dokiHarper = { ready:false, linter:null, error:null };
+  const harperLinter = new WorkerLinter({ binary: binaryInlined });
+  window.dokiHarper.linter = harperLinter;
+  window.dokiHarperReady = harperLinter.setup().then(function(){
+    window.dokiHarper.ready = true;
+    return harperLinter;
+  }).catch(function(error){
+    window.dokiHarper.error = error;
+    console.warn('Doki Duck AI: Local grammar engine unavailable. Chat will continue normally.', error);
+    return null;
+  });
 
   // PASS 2A: Firebase anonymous identity + cloud player sync.
   const FIREBASE_CONFIG = {
@@ -1115,13 +1108,16 @@
   async function checkGrammarForStage3A(text){
     if(!text || !text.trim()) return null;
     try {
-      const linter = window.dokiHarper && window.dokiHarper.linter;
-      if(!linter){
-        const ready = await (window.dokiHarperReady || Promise.resolve(null));
-        if(!ready) return null;
-      }
       const activeLinter = window.dokiHarper && window.dokiHarper.linter;
-      if(!activeLinter) return null;
+      if(!activeLinter){
+        meterEl.innerHTML = '⚠ Grammar checker unavailable';
+        return null;
+      }
+      const ready = await (window.dokiHarperReady || Promise.resolve(activeLinter));
+      if(!ready){
+        meterEl.innerHTML = '⚠ Grammar checker unavailable';
+        return null;
+      }
       const lints = await activeLinter.lint(text);
       return Array.isArray(lints) ? lints : [];
     } catch (error) {
