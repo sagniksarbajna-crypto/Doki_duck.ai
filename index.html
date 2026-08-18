@@ -275,6 +275,23 @@
   .meter b{color:var(--beak-dark);}
   .phone.incognito .meter{ background:#232230; color:#8a84a8; }
   .phone.incognito .meter b{ color:#b39dff; }
+  .grammar-status{
+    min-height:22px;
+    padding:3px 16px 0;
+    font-family:'JetBrains Mono', monospace;
+    font-size:0.72rem;
+    color:var(--olive-dark);
+    background:var(--cream);
+    transition:color .25s ease, background .25s ease;
+  }
+  .grammar-status.scan{color:var(--olive-dark)}
+  .grammar-status.clean{color:#4f7042}
+  .grammar-status.issue{color:#9a5b18}
+  .grammar-status.offline{color:#8b4d4d}
+  .phone.incognito .grammar-status{background:#232230;color:#8a84a8}
+  .phone.incognito .grammar-status.clean{color:#9ac78a}
+  .phone.incognito .grammar-status.issue{color:#e0b56e}
+  .phone.incognito .grammar-status.offline{color:#d08f8f}
 
   /* ---- input ---- */
   .inputbar{
@@ -567,6 +584,8 @@
 
   <div class="meter" id="meter">&nbsp;</div>
 
+  <div class="grammar-status" id="grammarStatus" aria-live="polite">Grammar engine: starting…</div>
+
   <div class="inputbar">
     <input type="text" id="userInput" placeholder="Type anything…" autocomplete="off" maxlength="500">
     <button class="send-btn" id="sendBtn" aria-label="Send">➤</button>
@@ -669,9 +688,13 @@ import { binaryInlined } from 'https://unpkg.com/harper.js@2.4.0/dist/binaryInli
   window.dokiHarper.linter = harperLinter;
   window.dokiHarperReady = harperLinter.setup().then(function(){
     window.dokiHarper.ready = true;
+    const status = document.getElementById('grammarStatus');
+    if(status){ status.className='grammar-status clean'; status.textContent='✓ Grammar engine ready'; }
     return harperLinter;
   }).catch(function(error){
     window.dokiHarper.error = error;
+    const status = document.getElementById('grammarStatus');
+    if(status){ status.className='grammar-status offline'; status.textContent='⚠ Grammar engine unavailable · chat still works'; }
     console.warn('Doki Duck AI: Local grammar engine unavailable. Chat will continue normally.', error);
     return null;
   });
@@ -857,6 +880,7 @@ import { binaryInlined } from 'https://unpkg.com/harper.js@2.4.0/dist/binaryInli
   const inputEl = document.getElementById('userInput');
   const sendBtn = document.getElementById('sendBtn');
   const meterEl = document.getElementById('meter');
+  const grammarStatusEl = document.getElementById('grammarStatus');
   const incogBtn = document.getElementById('incogBtn');
   const headerStatus = document.getElementById('headerStatus');
   const themeColorMeta = document.getElementById('themeColorMeta');
@@ -1110,12 +1134,13 @@ import { binaryInlined } from 'https://unpkg.com/harper.js@2.4.0/dist/binaryInli
     try {
       const activeLinter = window.dokiHarper && window.dokiHarper.linter;
       if(!activeLinter){
-        meterEl.innerHTML = '⚠ Grammar checker unavailable';
+        if(grammarStatusEl){ grammarStatusEl.className='grammar-status offline'; grammarStatusEl.textContent='⚠ Grammar engine unavailable · chat still works'; }
         return null;
       }
+      if(grammarStatusEl){ grammarStatusEl.className='grammar-status scan'; grammarStatusEl.textContent='Grammar scan…'; }
       const ready = await (window.dokiHarperReady || Promise.resolve(activeLinter));
       if(!ready){
-        meterEl.innerHTML = '⚠ Grammar checker unavailable';
+        if(grammarStatusEl){ grammarStatusEl.className='grammar-status offline'; grammarStatusEl.textContent='⚠ Grammar engine unavailable · chat still works'; }
         return null;
       }
       const lints = await activeLinter.lint(text);
@@ -1127,15 +1152,19 @@ import { binaryInlined } from 'https://unpkg.com/harper.js@2.4.0/dist/binaryInli
   }
 
   function showGrammarStage3AResult(lints){
+    if(!grammarStatusEl) return;
     if(!Array.isArray(lints)){
-      meterEl.innerHTML = '&nbsp;';
+      grammarStatusEl.className='grammar-status offline';
+      grammarStatusEl.textContent='⚠ Grammar engine unavailable · chat still works';
       return;
     }
     if(lints.length === 0){
-      meterEl.innerHTML = '✓ Grammar scan clean';
+      grammarStatusEl.className='grammar-status clean';
+      grammarStatusEl.textContent='✓ Grammar scan clean';
       return;
     }
-    meterEl.innerHTML = '⚠ Grammar scan found <b>' + lints.length + '</b> issue' + (lints.length === 1 ? '' : 's');
+    grammarStatusEl.className='grammar-status issue';
+    grammarStatusEl.textContent='⚠ Grammar scan found ' + lints.length + ' issue' + (lints.length === 1 ? '' : 's');
   }
 
   async function handleSend(){
