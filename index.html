@@ -544,6 +544,61 @@
 
 </div>
 
+<!-- PASS 2B: player profile + shared leaderboard -->
+<div class="modal-backdrop hidden" id="profileModal" aria-hidden="true">
+  <section class="data-modal" role="dialog" aria-modal="true" aria-labelledby="profileModalTitle">
+    <div class="data-modal-head">
+      <div class="data-modal-title" id="profileModalTitle">👤 My Doki Profile</div>
+      <button class="modal-close" id="profileModalClose" type="button" aria-label="Close profile">×</button>
+    </div>
+    <div class="data-modal-body">
+      <div class="profile-grid">
+        <div class="stat-card"><div class="stat-label">Username</div><div class="stat-value" id="profileNameValue">—</div></div>
+        <div class="stat-card"><div class="stat-label">XP</div><div class="stat-value" id="profileXpValue">0</div></div>
+        <div class="stat-card"><div class="stat-label">Doki Level</div><div class="stat-value" id="profileLevelValue">1</div></div>
+        <div class="stat-card"><div class="stat-label">Pond Points</div><div class="stat-value" id="profilePondValue">0</div></div>
+        <div class="stat-card"><div class="stat-label">Achievements</div><div class="stat-value" id="profileAchievementValue">0</div></div>
+        <div class="stat-card"><div class="stat-label">Local Progress</div><div class="stat-value" id="profileProgressValue">0 messages</div></div>
+      </div>
+      <button class="achievement-launch" id="openAchievementsBtn" type="button">
+        <span class="achievement-launch-copy"><span class="achievement-launch-title">🏆 Doki's Trophy Room</span><span class="achievement-launch-note">View earned and locked achievements</span></span>
+        <span class="achievement-launch-arrow">›</span>
+      </button>
+      <p class="modal-note">Cloud leaderboard data is limited to your username, XP, Doki level and achievement count. Your age remains local.</p>
+    </div>
+  </section>
+</div>
+
+<div class="modal-backdrop hidden" id="achievementsModal" aria-hidden="true">
+  <section class="data-modal" role="dialog" aria-modal="true" aria-labelledby="achievementsModalTitle">
+    <div class="data-modal-head">
+      <div class="data-modal-title" id="achievementsModalTitle">🏆 Doki's Trophy Room</div>
+      <button class="modal-close" id="achievementsModalClose" type="button" aria-label="Close achievements">×</button>
+    </div>
+    <div class="data-modal-body">
+      <div class="trophy-summary"><strong id="achievementSummaryCount">0 / 15 trophies earned</strong><span>More unlock as Doki grows.</span></div>
+      <p class="trophy-room-intro">Earned trophies get their own little duck attitude. Locked ones are waiting patiently. Doki is not.</p>
+      <div id="achievementList" class="achievement-list"></div>
+      <p class="trophy-locked-note">Some trophies are intentionally tied to future systems such as grammar learning, quizzes, feeding and Doki growth. They remain locked until those systems exist and the requirement is genuinely met.</p>
+    </div>
+  </section>
+</div>
+
+<div class="modal-backdrop hidden" id="leaderboardModal" aria-hidden="true">
+  <section class="data-modal" role="dialog" aria-modal="true" aria-labelledby="leaderboardModalTitle">
+    <div class="data-modal-head">
+      <div class="data-modal-title" id="leaderboardModalTitle">🏆 Pond Leaderboard</div>
+      <button class="modal-close" id="leaderboardModalClose" type="button" aria-label="Close leaderboard">×</button>
+    </div>
+    <div class="data-modal-body">
+      <p class="modal-note">Ranked by XP. Your age and Firebase UID are never displayed here.</p>
+      <div id="leaderboardList" class="leaderboard-list">
+        <div class="leader-loading">Loading the pond rankings…</div>
+      </div>
+    </div>
+  </section>
+</div>
+
 <script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-database-compat.js"></script>
@@ -1081,61 +1136,6 @@
 </script>
 
 
-
-<!-- PASS 2B: player profile + shared leaderboard -->
-<div class="modal-backdrop hidden" id="profileModal" aria-hidden="true">
-  <section class="data-modal" role="dialog" aria-modal="true" aria-labelledby="profileModalTitle">
-    <div class="data-modal-head">
-      <div class="data-modal-title" id="profileModalTitle">👤 My Doki Profile</div>
-      <button class="modal-close" id="profileModalClose" type="button" aria-label="Close profile">×</button>
-    </div>
-    <div class="data-modal-body">
-      <div class="profile-grid">
-        <div class="stat-card"><div class="stat-label">Username</div><div class="stat-value" id="profileNameValue">—</div></div>
-        <div class="stat-card"><div class="stat-label">XP</div><div class="stat-value" id="profileXpValue">0</div></div>
-        <div class="stat-card"><div class="stat-label">Doki Level</div><div class="stat-value" id="profileLevelValue">1</div></div>
-        <div class="stat-card"><div class="stat-label">Pond Points</div><div class="stat-value" id="profilePondValue">0</div></div>
-        <div class="stat-card"><div class="stat-label">Achievements</div><div class="stat-value" id="profileAchievementValue">0</div></div>
-        <div class="stat-card"><div class="stat-label">Local Progress</div><div class="stat-value" id="profileProgressValue">0 messages</div></div>
-      </div>
-      <button class="achievement-launch" id="openAchievementsBtn" type="button">
-        <span class="achievement-launch-copy"><span class="achievement-launch-title">🏆 Doki's Trophy Room</span><span class="achievement-launch-note">View earned and locked achievements</span></span>
-        <span class="achievement-launch-arrow">›</span>
-      </button>
-      <p class="modal-note">Cloud leaderboard data is limited to your username, XP, Doki level and achievement count. Your age remains local.</p>
-    </div>
-  </section>
-</div>
-
-<div class="modal-backdrop hidden" id="achievementsModal" aria-hidden="true">
-  <section class="data-modal" role="dialog" aria-modal="true" aria-labelledby="achievementsModalTitle">
-    <div class="data-modal-head">
-      <div class="data-modal-title" id="achievementsModalTitle">🏆 Doki's Trophy Room</div>
-      <button class="modal-close" id="achievementsModalClose" type="button" aria-label="Close achievements">×</button>
-    </div>
-    <div class="data-modal-body">
-      <div class="trophy-summary"><strong id="achievementSummaryCount">0 / 15 trophies earned</strong><span>More unlock as Doki grows.</span></div>
-      <p class="trophy-room-intro">Earned trophies get their own little duck attitude. Locked ones are waiting patiently. Doki is not.</p>
-      <div id="achievementList" class="achievement-list"></div>
-      <p class="trophy-locked-note">Some trophies are intentionally tied to future systems such as grammar learning, quizzes, feeding and Doki growth. They remain locked until those systems exist and the requirement is genuinely met.</p>
-    </div>
-  </section>
-</div>
-
-<div class="modal-backdrop hidden" id="leaderboardModal" aria-hidden="true">
-  <section class="data-modal" role="dialog" aria-modal="true" aria-labelledby="leaderboardModalTitle">
-    <div class="data-modal-head">
-      <div class="data-modal-title" id="leaderboardModalTitle">🏆 Pond Leaderboard</div>
-      <button class="modal-close" id="leaderboardModalClose" type="button" aria-label="Close leaderboard">×</button>
-    </div>
-    <div class="data-modal-body">
-      <p class="modal-note">Ranked by XP. Your age and Firebase UID are never displayed here.</p>
-      <div id="leaderboardList" class="leaderboard-list">
-        <div class="leader-loading">Loading the pond rankings…</div>
-      </div>
-    </div>
-  </section>
-</div>
 
 </body>
 </html>
