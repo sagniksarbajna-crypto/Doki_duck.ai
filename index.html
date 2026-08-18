@@ -1319,45 +1319,95 @@ import { binaryInlined } from 'https://unpkg.com/harper.js@2.4.0/dist/binaryInli
   function buildDokiSupplementalIssues(text, lints){
     const source = String(text || '');
     const issues = [];
-    const existing = Array.isArray(lints) ? lints.map(function(l){ return (safeProblemText(l)+' '+safeLintMessage(l)).toLowerCase(); }).join(' | ') : '';
-    function addIssue(start,end,problem,replacement,rule,message){
-      const key = (problem + '|' + replacement).toLowerCase();
-      if(Array.isArray(lints) && lints.some(function(x){
-        const xp = safeProblemText(x).toLowerCase();
-        const xs = safeSuggestions(x);
-        const xr = xs.length ? safeSuggestionText(xs[0]).toLowerCase() : '';
-        return xp === problem.toLowerCase() && xr === replacement.toLowerCase();
-      })) return;
-      if(issues.some(function(x){ return (x.get_problem_text()+'|' + x.suggestions()[0].get_replacement_text()).toLowerCase() === key; })) return;
-      issues.push({
-        span:function(){return {start:start,end:end};},
-        suggestions:function(){ return [{get_replacement_text:function(){return replacement;}}]; },
-        get_problem_text:function(){return problem;},
-        message:function(){return message;},
-        lint_kind_pretty:function(){return rule;}
+
+    function existingHas(problem, replacement){
+      const p = String(problem || '').trim().toLowerCase();
+      const r = String(replacement || '').trim().toLowerCase();
+      return Array.isArray(lints) && lints.some(function(l){
+        const lp = safeProblemText(l).trim().toLowerCase();
+        const ss = safeSuggestions(l);
+        const lr = ss.length ? safeSuggestionText(ss[0]).trim().toLowerCase() : '';
+        return lp === p && lr === r;
       });
     }
-    const reDoes = /\b(doesn(?:'|’)t)\s+([a-z]+s)\b/gi;
+
+    function overlapsExisting(start, end){
+      return Array.isArray(lints) && lints.some(function(l){
+        try {
+          const sp = typeof l.span === 'function' ? l.span() : null;
+          return sp && typeof sp.start === 'number' && typeof sp.end === 'number' && !(end <= sp.start || start >= sp.end);
+        } catch(e){ return false; }
+      });
+    }
+
+    function addIssue(start, end, problem, replacement, rule, message){
+      if(!problem || !replacement) return;
+      if(problem.trim().toLowerCase() === replacement.trim().toLowerCase()) return;
+      if(existingHas(problem, replacement)) return;
+      if(issues.some(function(x){ return x.start === start && x.end === end && x.replacement.toLowerCase() === replacement.toLowerCase(); })) return;
+      issues.push({
+        start:start, end:end, replacement:replacement,
+        span:function(){ return {start:start,end:end}; },
+        suggestions:function(){ return [{get_replacement_text:function(){ return replacement; }}]; },
+        get_problem_text:function(){ return problem; },
+        message:function(){ return message; },
+        lint_kind_pretty:function(){ return rule; }
+      });
+    }
+
+    // High-confidence auxiliary + verb-form rules. These deliberately target
+    // common deterministic mistakes that are safe to repair locally.
+    const auxPattern = /\b(doesn(?:'|’)t|don(?:'|’)t|didn(?:'|’)t|can(?:'|’)t|won(?:'|’)t|shouldn(?:'|’)t|mustn(?:'|’)t)\s+([a-z]+)(?=\s|[.!?,;:]|$)/gi;
     let m;
-    while((m=reDoes.exec(source))){
-      const word=m[2];
-      const base=word.endsWith('ies')?word.slice(0,-3)+'y':/(ches|shes|xes|zes|oes|sses)$/i.test(word)?word.slice(0,-2):word.slice(0,-1);
-      addIssue(m.index + m[1].length + 1, m.index + m[0].length, m[0].slice(m[1].length+1), base, 'Auxiliary verb', 'After “doesn’t”, use the base form of the verb.');
+    while((m = auxPattern.exec(source))){
+      const aux = m[1];
+      const verb = m[2];
+      let replacement = '';
+      let message = 'After “' + aux + '”, use the appropriate base verb form.';
+
+      if(/^(doesn(?:'|’)t|don(?:'|’)t|can(?:'|’)t|won(?:'|’)t|shouldn(?:'|’)t|mustn(?:'|’)t)$/i.test(aux)){
+        // Third-person -s/-es forms are not used after these auxiliaries.
+        if(/ies$/i.test(verb)) replacement = verb.slice(0, -3) + 'y';
+        else if(/(ches|shes|xes|zes|oes|sses)$/i.test(verb)) replacement = verb.slice(0, -2);
+        else if(/s$/i.test(verb) && verb.length > 2) replacement = verb.slice(0, -1);
+      } else if(/^didn(?:'|’)t$/i.test(aux)){
+        const irregular = {
+          went:'go', gone:'go', was:'be', were:'be', ate:'eat', eaten:'eat',
+          saw:'see', seen:'see', did:'do', done:'do', had:'have', made:'make',
+          took:'take', taken:'take', came:'come', ran:'run', wrote:'write', written:'write'
+        };
+        if(irregular[verb.toLowerCase()]) replacement = irregular[verb.toLowerCase()];
+        else if(/ed$/i.test(verb) && verb.length > 3) replacement = verb.slice(0, -2);
+      }
+
+      if(replacement){
+        // Keep the correction focused on the offending verb so it can coexist
+        // with Harper's separate detection of an auxiliary such as "don't" → "doesn't".
+        const problemStart = m.index + aux.length + 1;
+        const problemEnd = m.index + m[0].length;
+        addIssue(problemStart, problemEnd, verb, replacement, 'Auxiliary verb', message);
+      }
     }
-    const reThird = /\b(she|he|it)\s+([a-z]{2,})(?=\s|[.!?,]|$)/gi;
-    while((m=reThird.exec(source))){
-      const subj=m[1].toLowerCase(), verb=m[2];
-      if(/^(is|has|does|was)$/i.test(verb) || /s$/.test(verb)) continue;
-      let rep=verb;
-      if(/(ch|sh|s|x|z|o)$/i.test(verb)) rep=verb+'es'; else if(/[^aeiou]y$/i.test(verb)) rep=verb.slice(0,-1)+'ies'; else rep=verb+'s';
-      addIssue(m.index + m[1].length + 1, m.index + m[0].length, verb, rep, 'Subject–verb agreement', 'A singular “'+subj+'” usually needs the third-person singular verb form.');
+
+    // High-confidence third-person singular pattern: she/he/it + bare verb.
+    const reThird = /\b(she|he|it)\s+([a-z]{2,})(?=\s|[.!?,;:]|$)/gi;
+    while((m = reThird.exec(source))){
+      const subj = m[1].toLowerCase();
+      const verb = m[2];
+      if(/^(is|has|does|was|goes|likes|wants|needs|uses)$/i.test(verb) || /s$/i.test(verb)) continue;
+      let replacement = verb;
+      if(/(ch|sh|s|x|z|o)$/i.test(verb)) replacement = verb + 'es';
+      else if(/[^aeiou]y$/i.test(verb)) replacement = verb.slice(0,-1) + 'ies';
+      else replacement = verb + 's';
+      addIssue(m.index + m[1].length + 1, m.index + m[0].length, verb, replacement, 'Subject–verb agreement', 'A singular “' + subj + '” usually needs the third-person singular verb form.');
     }
+
     return issues;
   }
 
   function appendGrammarLearningCard(text, lints){
     if(!grammarPanelEl || !Array.isArray(lints) || !lints.length) return;
-    const allLints = lints.concat(buildDokiSupplementalIssues(text, lints));
+    const allLints = lints;
     grammarPanelEl.innerHTML = '';
 
     const card = document.createElement('div');
@@ -1426,7 +1476,7 @@ import { binaryInlined } from 'https://unpkg.com/harper.js@2.4.0/dist/binaryInli
       if(index === 0 && replacement){
         const quip = document.createElement('div');
         quip.className = 'grammar-quip';
-        quip.textContent = lints.length > 1 ? 'Multiple grammar crimes. Doki has opened a full investigation.' : 'Doki has arrested the verb for agreeing with absolutely nobody.';
+        quip.textContent = allLints.length > 1 ? 'Multiple grammar crimes. Doki has opened a full investigation.' : 'Doki has arrested the verb for agreeing with absolutely nobody.';
         issue.appendChild(quip);
       }
 
@@ -1482,17 +1532,17 @@ import { binaryInlined } from 'https://unpkg.com/harper.js@2.4.0/dist/binaryInli
       if(grammarPanelEl){ grammarPanelEl.innerHTML=''; grammarPanelEl.classList.remove('visible'); }
       return;
     }
-    if(lints.length === 0){
+    const supplemental = buildDokiSupplementalIssues(originalText, lints);
+    const allLints = lints.concat(supplemental);
+    if(allLints.length === 0){
       grammarStatusEl.className='grammar-status clean';
       grammarStatusEl.textContent='✓ Grammar scan clean';
       if(grammarPanelEl){ grammarPanelEl.innerHTML=''; grammarPanelEl.classList.remove('visible'); }
       return;
     }
-    const supplemental = buildDokiSupplementalIssues(originalText, lints);
-    const allLints = lints.concat(supplemental);
     grammarStatusEl.className='grammar-status issue';
     grammarStatusEl.textContent='⚠ Grammar scan found ' + allLints.length + ' issue' + (allLints.length === 1 ? '' : 's');
-    appendGrammarLearningCard(originalText, lints.concat(supplemental));
+    appendGrammarLearningCard(originalText, allLints);
   }
 
   async function handleSend(){
