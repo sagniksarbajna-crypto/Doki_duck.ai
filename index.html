@@ -293,7 +293,20 @@
   .phone.incognito .grammar-status.issue{color:#e0b56e}
   .phone.incognito .grammar-status.offline{color:#d08f8f}
 
-  .grammar-panel{display:none;max-height:34vh;overflow-y:auto;padding:8px 12px 10px;background:var(--cream);scrollbar-width:thin}
+  .grammar-panel{
+    display:none;
+    max-height:34vh;
+    overflow-y:auto;
+    overflow-x:hidden;
+    padding:8px 12px 10px;
+    background:var(--cream);
+    scrollbar-width:thin;
+    -webkit-overflow-scrolling:touch;
+    overscroll-behavior:contain;
+    touch-action:pan-y;
+    scroll-behavior:smooth;
+    contain:layout paint;
+  }
   .grammar-panel.visible{display:block}
   .grammar-panel .grammar-card{margin:0;max-width:none}
   .phone.incognito .grammar-panel{background:#232230}
@@ -1325,10 +1338,12 @@ import { binaryInlined } from 'https://unpkg.com/harper.js@2.4.0/dist/binaryInli
     const primaryKind = safeLintKind(primary);
     const rule = classifyDokiRule(primaryMessage, primaryKind, primaryProblem, primarySuggestion);
 
-    const reaction = document.createElement('div');
-    reaction.className = 'grammar-explain';
-    reaction.textContent = dokiGrammarReaction(rule, lints.length);
-    body.appendChild(reaction);
+    const summary = document.createElement('div');
+    summary.className = 'grammar-explain';
+    summary.textContent = lints.length > 1
+      ? 'Doki found ' + lints.length + ' separate grammar issues. Let’s arrest them one by one.'
+      : dokiGrammarReaction(rule, 1);
+    body.appendChild(summary);
 
     // Show every detected issue, not just the first one. Harper may return
     // multiple independent lints in one message, so the learning UI must not
@@ -1410,6 +1425,8 @@ import { binaryInlined } from 'https://unpkg.com/harper.js@2.4.0/dist/binaryInli
     grammarPanelEl.innerHTML = '';
     grammarPanelEl.appendChild(card);
     grammarPanelEl.classList.add('visible');
+    // Always start a fresh result at the top so every correction is reachable.
+    grammarPanelEl.scrollTop = 0;
   }
 
   function showGrammarStage3BResult(lints, originalText){
