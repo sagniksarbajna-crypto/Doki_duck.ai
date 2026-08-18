@@ -333,10 +333,39 @@
 
   /* PASS 2B: shared leaderboard + compact player profile */
   .header-tools{margin-left:auto;display:flex;align-items:center;gap:7px;flex-shrink:0}
-  .profile-chip{position:static;display:block!important;max-width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:10px;font-weight:800;background:#eef1e2;color:#222;border:1px solid #222;border-radius:10px;padding:6px 8px;z-index:3;cursor:pointer}
-  .profile-chip.onboard-hidden{display:none!important}
-  .leaderboard-btn{width:34px;height:34px;border:2px solid #222;border-radius:50%;background:#eef1e2;color:#222;font-size:16px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
-  .phone.incognito .profile-chip,.phone.incognito .leaderboard-btn{background:#34323f;color:#eee;border-color:#66627c}
+  .menu-trigger{width:40px;height:40px;border:2px solid #222;border-radius:12px;background:#eef1e2;color:#222;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;position:relative;box-shadow:0 3px 0 rgba(34,34,34,.14);transition:transform .16s ease,box-shadow .16s ease,background .16s ease}
+  .menu-trigger:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(34,34,34,.14)}
+  .menu-trigger-lines{width:19px;display:flex;flex-direction:column;gap:4px}
+  .menu-trigger-lines span{display:block;height:2.5px;border-radius:4px;background:currentColor;transition:transform .22s ease,opacity .18s ease}
+  .menu-trigger[aria-expanded="true"] .menu-trigger-lines span:nth-child(1){transform:translateY(6.5px) rotate(45deg)}
+  .menu-trigger[aria-expanded="true"] .menu-trigger-lines span:nth-child(2){opacity:0}
+  .menu-trigger[aria-expanded="true"] .menu-trigger-lines span:nth-child(3){transform:translateY(-6.5px) rotate(-45deg)}
+  .phone.incognito .menu-trigger{background:#34323f;color:#eee;border-color:#66627c}
+  .doki-menu-backdrop{position:fixed;inset:0;z-index:8800;background:rgba(15,17,13,.48);backdrop-filter:blur(3px);opacity:1;transition:opacity .22s ease}
+  .doki-menu-backdrop.hidden{display:none}
+  .doki-menu-panel{position:fixed;top:0;right:0;bottom:0;width:min(86vw,360px);z-index:8900;background:#f7f2e7;color:#222;border-left:2px solid #222;box-shadow:-18px 0 50px rgba(0,0,0,.25);transform:translateX(100%);transition:transform .26s cubic-bezier(.22,.8,.25,1);display:flex;flex-direction:column;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom);overflow:hidden}
+  .doki-menu-panel.open{transform:translateX(0)}
+  .doki-menu-head{padding:18px 18px 14px;background:#dfe7c9;border-bottom:1px solid #bbb;display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .doki-menu-title{font-family:'Baloo 2',sans-serif;font-size:1.25rem;font-weight:900}
+  .doki-menu-subtitle{font-size:10px;opacity:.65;margin-top:2px}
+  .doki-menu-close{width:36px;height:36px;border:2px solid #222;border-radius:50%;background:transparent;font-size:20px;cursor:pointer}
+  .doki-menu-profile{margin:12px 14px 8px;padding:12px;border:1.5px solid #c8c0b1;border-radius:15px;background:#fff;display:flex;align-items:center;gap:10px}
+  .doki-menu-avatar{width:42px;height:42px;border-radius:13px;background:#eef1e2;border:1.5px solid #222;display:grid;place-items:center;font-size:22px;flex:0 0 auto}
+  .doki-menu-profile-name{font-weight:900;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .doki-menu-profile-meta{font-size:10px;opacity:.65;margin-top:2px}
+  .doki-menu-list{padding:6px 10px 14px;overflow:auto}
+  .doki-menu-item{width:100%;border:0;background:transparent;color:inherit;border-radius:13px;display:flex;align-items:center;gap:12px;padding:13px 10px;text-align:left;cursor:pointer;font:inherit;transition:background .15s ease,transform .15s ease}
+  .doki-menu-item:active{transform:scale(.985);background:#e9eddc}
+  .doki-menu-icon{width:34px;height:34px;border-radius:10px;background:#eef1e2;border:1px solid #c5cbb4;display:grid;place-items:center;font-size:17px;flex:0 0 auto}
+  .doki-menu-item-copy{min-width:0;flex:1}
+  .doki-menu-item-title{font-weight:900;font-size:13px}
+  .doki-menu-item-note{font-size:10px;opacity:.62;margin-top:2px}
+  .doki-menu-arrow{font-size:20px;opacity:.45}
+  .phone.incognito .doki-menu-panel{background:#24232c;color:#eee;border-color:#66627c}
+  .phone.incognito .doki-menu-head{background:#34323f;border-color:#555265}
+  .phone.incognito .doki-menu-profile,.phone.incognito .doki-menu-icon{background:#302f39;border-color:#66627c}
+  .phone.incognito .doki-menu-item:active{background:#34323f}
+  @media(max-width:430px){.menu-trigger{width:38px;height:38px}.doki-menu-panel{width:min(90vw,340px)}}
   .modal-backdrop{position:fixed;inset:0;z-index:9000;background:rgba(15,17,13,.68);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:14px}
   .modal-backdrop.hidden{display:none!important}
   .data-modal{width:min(100%,520px);max-height:calc(100dvh - 28px);background:#f7f2e7;color:#222;border:2px solid #222;border-radius:22px;box-shadow:0 18px 60px rgba(0,0,0,.38);overflow:hidden;display:flex;flex-direction:column}
@@ -513,8 +542,9 @@
       <div class="header-status" id="headerStatus"><span class="dot"></span> knows exactly one word</div>
     </div>
     <div class="header-tools">
-      <button class="profile-chip onboard-hidden" id="profileChip" type="button" aria-label="Open my Doki profile"></button>
-      <button class="leaderboard-btn" id="leaderboardBtn" type="button" aria-label="Open leaderboard" title="Leaderboard">🏆</button>
+      <button class="menu-trigger" id="menuTrigger" type="button" aria-label="Open Doki menu" aria-expanded="false">
+        <span class="menu-trigger-lines" aria-hidden="true"><span></span><span></span><span></span></span>
+      </button>
     </div>
   </div>
 
@@ -543,6 +573,24 @@
   </div>
 
 </div>
+
+<!-- PASS 2B: compact navigation menu for Profile, Trophy Room and Leaderboard -->
+<div class="doki-menu-backdrop hidden" id="dokiMenuBackdrop" aria-hidden="true"></div>
+<aside class="doki-menu-panel" id="dokiMenuPanel" aria-hidden="true" aria-label="Doki Duck menu">
+  <div class="doki-menu-head">
+    <div><div class="doki-menu-title">Doki's Menu</div><div class="doki-menu-subtitle">Choose your pond destination.</div></div>
+    <button class="doki-menu-close" id="dokiMenuClose" type="button" aria-label="Close menu">×</button>
+  </div>
+  <div class="doki-menu-profile">
+    <div class="doki-menu-avatar">🦆</div>
+    <div style="min-width:0"><div class="doki-menu-profile-name" id="dokiMenuProfileName">Your Doki</div><div class="doki-menu-profile-meta" id="dokiMenuProfileMeta">Level 1 · 0 XP</div></div>
+  </div>
+  <nav class="doki-menu-list" aria-label="Doki navigation">
+    <button class="doki-menu-item" id="menuProfileBtn" type="button"><span class="doki-menu-icon">👤</span><span class="doki-menu-item-copy"><span class="doki-menu-item-title">My Doki</span><span class="doki-menu-item-note">Profile, XP and pond progress</span></span><span class="doki-menu-arrow">›</span></button>
+    <button class="doki-menu-item" id="menuTrophyBtn" type="button"><span class="doki-menu-icon">🏆</span><span class="doki-menu-item-copy"><span class="doki-menu-item-title">Trophy Room</span><span class="doki-menu-item-note">Earned and locked Doki trophies</span></span><span class="doki-menu-arrow">›</span></button>
+    <button class="doki-menu-item" id="menuLeaderboardBtn" type="button"><span class="doki-menu-icon">📊</span><span class="doki-menu-item-copy"><span class="doki-menu-item-title">Pond Leaderboard</span><span class="doki-menu-item-note">See the shared XP rankings</span></span><span class="doki-menu-arrow">›</span></button>
+  </nav>
+</aside>
 
 <!-- PASS 2B: player profile + shared leaderboard -->
 <div class="modal-backdrop hidden" id="profileModal" aria-hidden="true">
@@ -726,12 +774,19 @@
   const profileContinue = document.getElementById('profileContinue');
   const acceptTerms = document.getElementById('acceptTerms');
   const rejectTerms = document.getElementById('rejectTerms');
-  const profileChip = document.getElementById('profileChip');
+  const menuTrigger = document.getElementById('menuTrigger');
+  const dokiMenuPanel = document.getElementById('dokiMenuPanel');
+  const dokiMenuBackdrop = document.getElementById('dokiMenuBackdrop');
+  const dokiMenuClose = document.getElementById('dokiMenuClose');
+  const menuProfileBtn = document.getElementById('menuProfileBtn');
+  const menuTrophyBtn = document.getElementById('menuTrophyBtn');
+  const menuLeaderboardBtn = document.getElementById('menuLeaderboardBtn');
+  const dokiMenuProfileName = document.getElementById('dokiMenuProfileName');
+  const dokiMenuProfileMeta = document.getElementById('dokiMenuProfileMeta');
 
   function showApp(){
     onboardOverlay.classList.add('onboard-hidden');
-    profileChip.textContent = player.username ? '👤 ' + player.username : '';
-    profileChip.classList.toggle('onboard-hidden', !player.username);
+    updateDokiMenuSummary();
     savePlayer();
   }
   function startOnboarding(){
@@ -789,8 +844,6 @@
   const incogBtn = document.getElementById('incogBtn');
   const headerStatus = document.getElementById('headerStatus');
   const themeColorMeta = document.getElementById('themeColorMeta');
-
-  const leaderboardBtn = document.getElementById('leaderboardBtn');
 
   const ACHIEVEMENTS = [
     {id:'welcome', title:'Welcome to the Pond', desc:"Finish the first-launch setup and join Doki's pond.", type:'current'},
@@ -1109,23 +1162,54 @@
     setIncognito(!incognito);
   });
 
+  function updateDokiMenuSummary(){
+    if(!dokiMenuProfileName || !dokiMenuProfileMeta) return;
+    dokiMenuProfileName.textContent = player.username || 'Your Doki';
+    dokiMenuProfileMeta.textContent = 'Level ' + Math.max(1, Number(player.dokiLevel) || 1) + ' · ' + Math.max(0, Number(player.xp) || 0) + ' XP';
+  }
 
-  profileChip.addEventListener('click', function(){
+  let dokiMenuOpen = false;
+  function setDokiMenuOpen(open){
+    dokiMenuOpen = !!open;
+    dokiMenuPanel.classList.toggle('open', dokiMenuOpen);
+    dokiMenuBackdrop.classList.toggle('hidden', !dokiMenuOpen);
+    dokiMenuPanel.setAttribute('aria-hidden', dokiMenuOpen ? 'false' : 'true');
+    dokiMenuBackdrop.setAttribute('aria-hidden', dokiMenuOpen ? 'false' : 'true');
+    menuTrigger.setAttribute('aria-expanded', dokiMenuOpen ? 'true' : 'false');
+    if(dokiMenuOpen) updateDokiMenuSummary();
+  }
+
+  menuTrigger.addEventListener('click', function(){ setDokiMenuOpen(!dokiMenuOpen); });
+  dokiMenuClose.addEventListener('click', function(){ setDokiMenuOpen(false); });
+  dokiMenuBackdrop.addEventListener('click', function(){ setDokiMenuOpen(false); });
+
+  menuProfileBtn.addEventListener('click', function(){
+    setDokiMenuOpen(false);
     closeLeaderboard();
     closeAchievements();
     refreshProfileModal();
     setModalOpen(profileModal, true);
   });
+  menuTrophyBtn.addEventListener('click', function(){
+    setDokiMenuOpen(false);
+    openAchievements();
+  });
+  menuLeaderboardBtn.addEventListener('click', function(){
+    setDokiMenuOpen(false);
+    openLeaderboard();
+  });
+
+
   profileModalClose.addEventListener('click', function(){ setModalOpen(profileModal, false); });
   openAchievementsBtn.addEventListener('click', openAchievements);
   achievementsModalClose.addEventListener('click', closeAchievements);
-  leaderboardBtn.addEventListener('click', openLeaderboard);
   leaderboardModalClose.addEventListener('click', closeLeaderboard);
   profileModal.addEventListener('click', function(e){ if(e.target === profileModal) setModalOpen(profileModal, false); });
   achievementsModal.addEventListener('click', function(e){ if(e.target === achievementsModal) closeAchievements(); });
   leaderboardModal.addEventListener('click', function(e){ if(e.target === leaderboardModal) closeLeaderboard(); });
   document.addEventListener('keydown', function(e){
     if(e.key === 'Escape'){
+      setDokiMenuOpen(false);
       setModalOpen(profileModal, false);
       closeAchievements();
       closeLeaderboard();
