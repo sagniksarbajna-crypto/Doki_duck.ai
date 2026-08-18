@@ -647,6 +647,29 @@
   </section>
 </div>
 
+<script type="module">
+(function(){
+  // PASS 3A: local Harper grammar engine bootstrap.
+  // The main app remains usable even if the remote module fails to load.
+  window.dokiHarper = { ready:false, linter:null, error:null };
+  window.dokiHarperReady = (async function(){
+    try {
+      const [{ WorkerLinter, binaryInlined }] = await Promise.all([
+        import('https://unpkg.com/harper.js@2.4.0/dist/index.js'),
+        import('https://unpkg.com/harper.js@2.4.0/dist/binaryInlined.js')
+      ]);
+      const linter = new WorkerLinter({ binary: binaryInlined });
+      window.dokiHarper.linter = linter;
+      window.dokiHarper.ready = true;
+      return linter;
+    } catch (error) {
+      window.dokiHarper.error = error;
+      console.warn('Doki Duck AI: Local grammar engine unavailable. Chat will continue normally.', error);
+      return null;
+    }
+  })();
+})();
+</script>
 <script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-database-compat.js"></script>
@@ -1089,7 +1112,37 @@
     scrollToBottom();
   }
 
-  function handleSend(){
+  async function checkGrammarForStage3A(text){
+    if(!text || !text.trim()) return null;
+    try {
+      const linter = window.dokiHarper && window.dokiHarper.linter;
+      if(!linter){
+        const ready = await (window.dokiHarperReady || Promise.resolve(null));
+        if(!ready) return null;
+      }
+      const activeLinter = window.dokiHarper && window.dokiHarper.linter;
+      if(!activeLinter) return null;
+      const lints = await activeLinter.lint(text);
+      return Array.isArray(lints) ? lints : [];
+    } catch (error) {
+      console.warn('Doki Duck AI: Grammar scan failed. Continuing without grammar feedback.', error);
+      return null;
+    }
+  }
+
+  function showGrammarStage3AResult(lints){
+    if(!Array.isArray(lints)){
+      meterEl.innerHTML = '&nbsp;';
+      return;
+    }
+    if(lints.length === 0){
+      meterEl.innerHTML = '✓ Grammar scan clean';
+      return;
+    }
+    meterEl.innerHTML = '⚠ Grammar scan found <b>' + lints.length + '</b> issue' + (lints.length === 1 ? '' : 's');
+  }
+
+  async function handleSend(){
     const raw = inputEl.value;
     if(!raw.trim()) return;
 
@@ -1111,7 +1164,12 @@
     savePlayer();
     const count = quackCountFor(raw);
     inputEl.value = '';
-    meterEl.innerHTML = '&nbsp;';
+    meterEl.innerHTML = '<span class="grammar-scan-status">Grammar scan…</span>';
+
+    // Pass 3A only detects grammar issues locally. It does not award Pond Points
+    // and does not generate corrections yet; those belong to later Pass 3 stages.
+    void checkGrammarForStage3A(raw).then(showGrammarStage3AResult);
+
     setTimeout(function(){
       addRow(buildQuackReply(count), 'bot');
     }, 260);
