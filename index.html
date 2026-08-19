@@ -1284,21 +1284,47 @@ import { binaryInlined } from 'https://unpkg.com/harper.js@2.4.0/dist/binaryInli
     function add(start,end,problem,replacement,rule,why){
       if(!problem || !replacement || problem.toLowerCase()===replacement.toLowerCase()) return;
       if(overlaps(start,end)) return;
-      if(out.some(x=>x.start===start && x.end===end)) return;
+      if(out.some(x=>x.start===start && x.end===end && x.replacement.toLowerCase()===replacement.toLowerCase())) return;
       out.push({start:start,end:end,problem:problem,replacement:replacement,rule:rule,why:why});
     }
-    // High-confidence auxiliary + third-person verb-form errors.
-    const re=/\b(doesn['’]t|does not|don['’]t|do not|didn['’]t|did not|can['’]t|cannot|won['’]t|will not|shouldn['’]t|should not|couldn['’]t|could not|wouldn['’]t|would not|mustn['’]t|must not)\s+([A-Za-z]+)\b/gi;
+
+    // High-confidence auxiliary + base-verb errors. Only alter the verb token;
+    // do not rewrite the auxiliary itself because Harper may already be reporting it.
+    const aux=/\b(doesn['’]t|does not|don['’]t|do not|didn['’]t|did not|can['’]t|cannot|won['’]t|will not|shouldn['’]t|should not|couldn['’]t|could not|wouldn['’]t|would not|mustn['’]t|must not)\s+([A-Za-z]+)\b/gi;
     let m;
-    while((m=re.exec(source))){
+    while((m=aux.exec(source))){
       const verb=m[2]; let base='';
+      if(!/[A-Za-z]/.test(verb)) continue;
       if(/ies$/i.test(verb)) base=verb.slice(0,-3)+'y';
       else if(/(?:ches|shes|xes|zes|oes|sses)$/i.test(verb)) base=verb.slice(0,-2);
       else if(/s$/i.test(verb) && !/ss$/i.test(verb)) base=verb.slice(0,-1);
+      const irregular={went:'go',gone:'go',was:'be',were:'be',ate:'eat',eaten:'eat',saw:'see',seen:'see',did:'do',done:'do',had:'have',made:'make',took:'take',taken:'take',came:'come',ran:'run',wrote:'write',written:'write'};
+      if(/^didn(?:'|’)t$/i.test(m[1]) && irregular[verb.toLowerCase()]) base=irregular[verb.toLowerCase()];
       if(base && base.toLowerCase()!==verb.toLowerCase()){
         const start=m.index+m[0].lastIndexOf(verb);
         add(start,start+verb.length,verb,base,'Auxiliary verb + base form','After a helping verb such as “doesn’t”, “don’t”, or “didn’t”, the main verb normally stays in its base form.');
       }
+    }
+
+    // High-confidence plural-subject + third-person -s mismatch.
+    // Examples: “friends likes” → “friends like”, “ducks goes” → “ducks go”.
+    const plural=/\b([A-Za-z][A-Za-z'-]*(?:s|people|children|men|women))\s+([A-Za-z]+s)\b/gi;
+    while((m=plural.exec(source))){
+      const subject=m[1], verb=m[2];
+      // Do not treat possessives or common plural nouns as subjects blindly.
+      if(/'s$/i.test(subject)) continue;
+      if(/^(is|was|has|does|needs|likes|wants|goes|uses|comes|does)$/i.test(verb)){
+        // A plural subject with an irregular/third-person-looking verb is worth checking,
+        // but only convert the common regular -s forms to a base verb.
+      }
+      if(!/s$/i.test(verb) || /ss$/i.test(verb)) continue;
+      let base=verb.slice(0,-1);
+      if(/(?:ches|shes|xes|zes|oes)$/i.test(verb)) base=verb.slice(0,-2);
+      else if(/ies$/i.test(verb)) base=verb.slice(0,-3)+'y';
+      const stop=new Set(['is','was','has','does']);
+      if(stop.has(verb.toLowerCase())) continue;
+      const start=m.index+m[0].lastIndexOf(verb);
+      add(start,start+verb.length,verb,base,'Plural subject–verb agreement','The subject is plural here, so the verb normally uses its base form rather than the singular third-person form.');
     }
     return out;
   }
@@ -1315,7 +1341,9 @@ import { binaryInlined } from 'https://unpkg.com/harper.js@2.4.0/dist/binaryInli
     intro.querySelector('code').textContent=lints.map(function(x){return x.problem || safeProblemText(x);}).filter(Boolean).slice(0,8).join(' · ') || 'the sentence';
     body.appendChild(intro);
     const intro2=document.createElement('div'); intro2.className='grammar-doki';
-    intro2.textContent='Found '+lints.length+' issue'+(lints.length===1?'':'s')+'. '+(lints.length>1?'Multiple grammar crimes. Doki has opened a full investigation.':'Doki has arrested the verb for agreeing with absolutely nobody.');
+    const firstRule = lints[0].rule || classifyDokiRule(lints[0].message || safeLintMessage(lints[0]), lints[0].rule || safeLintKind(lints[0]), lints[0].problem || safeProblemText(lints[0]), lints[0].replacement || '');
+    const quip = lints.length>1 ? 'Multiple grammar crimes. Doki has opened a full investigation.' : (firstRule==='Subject–verb agreement' || firstRule==='Auxiliary verb + base form' || /verb/i.test(firstRule) ? 'Doki has arrested the verb for agreeing with absolutely nobody.' : 'Doki found something suspicious. The duck investigation is underway.');
+    intro2.textContent='Found '+lints.length+' issue'+(lints.length===1?'':'s')+'. '+quip;
     body.appendChild(intro2);
     lints.forEach(function(lint,index){
       const problem=lint.problem || safeProblemText(lint);
@@ -1349,8 +1377,13 @@ import { binaryInlined } from 'https://unpkg.com/harper.js@2.4.0/dist/binaryInli
       grammarStatusEl.textContent='⚠ Grammar engine unavailable · chat still works';
       return;
     }
-    const combined=lints.slice();
-    buildDokiFallbackLints(originalText,lints).forEach(function(x){ combined.push(x); });
+    const protectedTerms = new Set(['doki','doki duck','doki duck ai','doki grammar police','pond points']);
+    const filteredHarper = lints.filter(function(lint){
+      const problem = safeProblemText(lint).trim().toLowerCase();
+      return !protectedTerms.has(problem);
+    });
+    const combined=filteredHarper.slice();
+    buildDokiFallbackLints(originalText,filteredHarper).forEach(function(x){ combined.push(x); });
     if(combined.length===0){
       grammarStatusEl.className='grammar-status clean';
       grammarStatusEl.textContent='✓ Grammar scan clean';
