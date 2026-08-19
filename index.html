@@ -293,31 +293,6 @@
   .phone.incognito .grammar-status.issue{color:#e0b56e}
   .phone.incognito .grammar-status.offline{color:#d08f8f}
 
-  .grammar-panel{
-    display:none;
-    max-height:34vh;
-    overflow-y:auto;
-    overflow-x:hidden;
-    padding:8px 12px 10px;
-    background:var(--cream);
-    scrollbar-width:thin;
-    -webkit-overflow-scrolling:touch;
-    overscroll-behavior:contain;
-    touch-action:pan-y;
-    scroll-behavior:smooth;
-    contain:layout paint;
-  }
-  .grammar-panel.visible{display:block}
-  .grammar-panel .grammar-card{margin:0;max-width:none}
-  .phone.incognito .grammar-panel{background:#232230}
-  @media(max-width:430px){.grammar-panel{max-height:38vh;padding:7px 10px 9px}}
-  .grammar-issue-list{display:flex;flex-direction:column;gap:9px}
-  .grammar-issue{padding:9px;border:1px solid #d0c7b8;border-radius:13px;background:#fff}
-  .grammar-issue-number{font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.5px;opacity:.58;margin-bottom:5px}
-  .grammar-quip{margin-top:8px;padding:7px 9px;border-radius:10px;background:#fff8dd;border:1px dashed #d6b34c;font-size:10.5px;line-height:1.35;color:#514523}
-  .phone.incognito .grammar-issue{background:#2f2e3a;border-color:#5b596a}
-  .phone.incognito .grammar-quip{background:#3a3847;border-color:#7d76a9;color:#d7d2f0}
-
   /* ---- input ---- */
   .inputbar{
     display:flex;
@@ -651,7 +626,6 @@
   <div class="meter" id="meter">&nbsp;</div>
 
   <div class="grammar-status" id="grammarStatus" aria-live="polite">Grammar engine: starting…</div>
-  <div class="grammar-panel" id="grammarPanel" aria-live="polite" aria-label="Doki Grammar Police"></div>
 
   <div class="inputbar">
     <input type="text" id="userInput" placeholder="Type anything…" autocomplete="off" maxlength="500">
@@ -948,7 +922,6 @@ import { binaryInlined } from 'https://unpkg.com/harper.js@2.4.0/dist/binaryInli
   const sendBtn = document.getElementById('sendBtn');
   const meterEl = document.getElementById('meter');
   const grammarStatusEl = document.getElementById('grammarStatus');
-  const grammarPanelEl = document.getElementById('grammarPanel');
   const incogBtn = document.getElementById('incogBtn');
   const headerStatus = document.getElementById('headerStatus');
   const themeColorMeta = document.getElementById('themeColorMeta');
@@ -1248,56 +1221,41 @@ import { binaryInlined } from 'https://unpkg.com/harper.js@2.4.0/dist/binaryInli
   }
 
   function classifyDokiRule(message, kind, problemText, replacement){
-    // Keep classification flexible: Harper's rule set can evolve, so Doki uses
-    // the human-readable lint message/category rather than depending on a fixed rule ID.
     const hay = (String(message) + ' ' + String(kind) + ' ' + String(problemText)).toLowerCase();
     if(/subject.?verb|agreement|third person|singular/.test(hay)) return 'Subject–verb agreement';
-    if(/tense|past|present|future|verb form|conjugat/.test(hay)) return 'Verb tense / form';
-    if(/article|a\s+vs\s+an|an\s+a|the\b/.test(hay)) return 'Articles';
-    if(/pronoun|antecedent/.test(hay)) return 'Pronouns';
+    if(/tense|past|present|future|verb form/.test(hay)) return 'Verb tense / form';
+    if(/article|a\s+vs\s+an|an\s+a/.test(hay)) return 'Articles';
+    if(/pronoun/.test(hay)) return 'Pronouns';
     if(/preposition/.test(hay)) return 'Prepositions';
-    if(/punctuat|comma|apostrophe|quotation|period|semicolon|colon/.test(hay)) return 'Punctuation';
-    if(/spell|spelling|misspell|word choice/.test(hay)) return 'Spelling / word choice';
+    if(/punctuat|comma|apostrophe|quotation|period/.test(hay)) return 'Punctuation';
+    if(/spell|spelling|misspell/.test(hay)) return 'Spelling';
     if(replacement && problemText && /\b(is|are|was|were|has|have|does|do|go|goes|like|likes|want|wants|need|needs)\b/i.test(problemText + ' ' + replacement)) return 'Verb / sentence structure';
     return kind || 'Grammar';
   }
 
   function explainDokiRule(rule, problemText, replacement, message){
+    const p = problemText || 'the highlighted part';
     switch(rule){
       case 'Subject–verb agreement':
-        return 'The subject and verb need to agree in number. Singular subjects usually take a singular verb form.';
+        return 'The subject and verb need to agree in number. Singular subjects often take a singular verb form.';
       case 'Verb tense / form':
-        return 'The verb form does not fit the time or grammatical structure of the sentence. Keep the tense consistent with the meaning.';
+        return 'The verb form does not match the time or grammatical structure of the sentence. Keep the tense consistent with the meaning.';
       case 'Articles':
-        return 'English articles such as “a”, “an”, and “the” depend on the noun and how you are introducing or identifying it.';
+        return 'English articles such as “a”, “an”, and “the” depend on the noun and the way it is being introduced.';
       case 'Pronouns':
         return 'The pronoun should clearly match the person or thing being referred to and fit the sentence structure.';
       case 'Prepositions':
-        return 'The preposition should match the relationship expressed by the sentence, such as time, place, direction, or connection.';
+        return 'The preposition needs to match the relationship expressed by the sentence, such as time, place, direction, or connection.';
       case 'Punctuation':
-        return 'A punctuation mark changes how the sentence is separated or read. Doki prefers punctuation that knows where to stand.';
-      case 'Spelling / word choice':
-        return 'This word appears to have a spelling or word-choice problem. Doki has found the suspicious bit.';
+        return 'A punctuation mark is affecting how the sentence should be separated or read.';
+      case 'Spelling':
+        return 'This word appears to have a spelling problem. Doki has located the suspicious part for you.';
       default:
         return message ? String(message).replace(/<[^>]*>/g, '') : 'Doki found a grammar problem in this part of the sentence.';
     }
   }
 
-  function dokiGrammarReaction(rule, issueCount){
-    const lines = {
-      'Subject–verb agreement': 'Doki has arrested the verb for agreeing with absolutely nobody.',
-      'Verb tense / form': 'Time travel is complicated. Your verb apparently tried it without permission.',
-      'Articles': 'A tiny article caused a surprisingly large amount of duck paperwork.',
-      'Pronouns': 'Doki would like to know exactly who you meant before the sentence wanders off.',
-      'Prepositions': 'That preposition took a wrong turn. Doki has pointed it back toward the sentence.',
-      'Punctuation': 'The punctuation wandered off again. Doki has filed a small complaint.',
-      'Spelling / word choice': 'Doki found a suspicious word. It is being questioned near the pond.',
-    };
-    if(lines[rule]) return lines[rule];
-    return issueCount > 1 ? 'Several grammar crimes at once. Doki is going to need more paperwork.' : 'Doki found a grammar crime. Naturally, Doki is offended.';
-  }
-
-  async function buildCorrectedText(text, allLints){
+  async function buildCorrectedText(text, lints){
     let corrected = String(text);
     const edits = [];
     for(const lint of lints){
@@ -1316,212 +1274,72 @@ import { binaryInlined } from 'https://unpkg.com/harper.js@2.4.0/dist/binaryInli
     return corrected;
   }
 
-  function buildDokiSupplementalIssues(text, lints){
-    const source = String(text || '');
-    const issues = [];
-
-    function existingHas(problem, replacement){
-      const p = String(problem || '').trim().toLowerCase();
-      const r = String(replacement || '').trim().toLowerCase();
-      return Array.isArray(lints) && lints.some(function(l){
-        const lp = safeProblemText(l).trim().toLowerCase();
-        const ss = safeSuggestions(l);
-        const lr = ss.length ? safeSuggestionText(ss[0]).trim().toLowerCase() : '';
-        return lp === p && lr === r;
+  function buildDokiFallbackLints(text, existingLints){
+    const out=[]; const source=String(text||'');
+    function overlaps(start,end){
+      return (existingLints||[]).some(function(l){
+        try{ const sp=l.span(); return sp && !(end<=sp.start || start>=sp.end); }catch(e){ return false; }
       });
     }
-
-    function overlapsExisting(start, end){
-      return Array.isArray(lints) && lints.some(function(l){
-        try {
-          const sp = typeof l.span === 'function' ? l.span() : null;
-          return sp && typeof sp.start === 'number' && typeof sp.end === 'number' && !(end <= sp.start || start >= sp.end);
-        } catch(e){ return false; }
-      });
+    function add(start,end,problem,replacement,rule,why){
+      if(!problem || !replacement || problem.toLowerCase()===replacement.toLowerCase()) return;
+      if(overlaps(start,end)) return;
+      if(out.some(x=>x.start===start && x.end===end)) return;
+      out.push({start:start,end:end,problem:problem,replacement:replacement,rule:rule,why:why});
     }
-
-    function addIssue(start, end, problem, replacement, rule, message){
-      if(!problem || !replacement) return;
-      if(problem.trim().toLowerCase() === replacement.trim().toLowerCase()) return;
-      if(existingHas(problem, replacement)) return;
-      if(issues.some(function(x){ return x.start === start && x.end === end && x.replacement.toLowerCase() === replacement.toLowerCase(); })) return;
-      issues.push({
-        start:start, end:end, replacement:replacement,
-        span:function(){ return {start:start,end:end}; },
-        suggestions:function(){ return [{get_replacement_text:function(){ return replacement; }}]; },
-        get_problem_text:function(){ return problem; },
-        message:function(){ return message; },
-        lint_kind_pretty:function(){ return rule; }
-      });
-    }
-
-    // High-confidence auxiliary + verb-form rules. These deliberately target
-    // common deterministic mistakes that are safe to repair locally.
-    const auxPattern = /\b(doesn(?:'|’)t|don(?:'|’)t|didn(?:'|’)t|can(?:'|’)t|won(?:'|’)t|shouldn(?:'|’)t|mustn(?:'|’)t)\s+([a-z]+)(?=\s|[.!?,;:]|$)/gi;
+    // High-confidence auxiliary + third-person verb-form errors.
+    const re=/\b(doesn['’]t|does not|don['’]t|do not|didn['’]t|did not|can['’]t|cannot|won['’]t|will not|shouldn['’]t|should not|couldn['’]t|could not|wouldn['’]t|would not|mustn['’]t|must not)\s+([A-Za-z]+)\b/gi;
     let m;
-    while((m = auxPattern.exec(source))){
-      const aux = m[1];
-      const verb = m[2];
-      let replacement = '';
-      let message = 'After “' + aux + '”, use the appropriate base verb form.';
-
-      if(/^(doesn(?:'|’)t|don(?:'|’)t|can(?:'|’)t|won(?:'|’)t|shouldn(?:'|’)t|mustn(?:'|’)t)$/i.test(aux)){
-        // Third-person -s/-es forms are not used after these auxiliaries.
-        if(/ies$/i.test(verb)) replacement = verb.slice(0, -3) + 'y';
-        else if(/(ches|shes|xes|zes|oes|sses)$/i.test(verb)) replacement = verb.slice(0, -2);
-        else if(/s$/i.test(verb) && verb.length > 2) replacement = verb.slice(0, -1);
-      } else if(/^didn(?:'|’)t$/i.test(aux)){
-        const irregular = {
-          went:'go', gone:'go', was:'be', were:'be', ate:'eat', eaten:'eat',
-          saw:'see', seen:'see', did:'do', done:'do', had:'have', made:'make',
-          took:'take', taken:'take', came:'come', ran:'run', wrote:'write', written:'write'
-        };
-        if(irregular[verb.toLowerCase()]) replacement = irregular[verb.toLowerCase()];
-        else if(/ed$/i.test(verb) && verb.length > 3) replacement = verb.slice(0, -2);
-      }
-
-      if(replacement){
-        // Keep the correction focused on the offending verb so it can coexist
-        // with Harper's separate detection of an auxiliary such as "don't" → "doesn't".
-        const problemStart = m.index + aux.length + 1;
-        const problemEnd = m.index + m[0].length;
-        addIssue(problemStart, problemEnd, verb, replacement, 'Auxiliary verb', message);
+    while((m=re.exec(source))){
+      const verb=m[2]; let base='';
+      if(/ies$/i.test(verb)) base=verb.slice(0,-3)+'y';
+      else if(/(?:ches|shes|xes|zes|oes|sses)$/i.test(verb)) base=verb.slice(0,-2);
+      else if(/s$/i.test(verb) && !/ss$/i.test(verb)) base=verb.slice(0,-1);
+      if(base && base.toLowerCase()!==verb.toLowerCase()){
+        const start=m.index+m[0].lastIndexOf(verb);
+        add(start,start+verb.length,verb,base,'Auxiliary verb + base form','After a helping verb such as “doesn’t”, “don’t”, or “didn’t”, the main verb normally stays in its base form.');
       }
     }
-
-    // High-confidence third-person singular pattern: she/he/it + bare verb.
-    const reThird = /\b(she|he|it)\s+([a-z]{2,})(?=\s|[.!?,;:]|$)/gi;
-    while((m = reThird.exec(source))){
-      const subj = m[1].toLowerCase();
-      const verb = m[2];
-      if(/^(is|has|does|was|goes|likes|wants|needs|uses)$/i.test(verb) || /s$/i.test(verb)) continue;
-      let replacement = verb;
-      if(/(ch|sh|s|x|z|o)$/i.test(verb)) replacement = verb + 'es';
-      else if(/[^aeiou]y$/i.test(verb)) replacement = verb.slice(0,-1) + 'ies';
-      else replacement = verb + 's';
-      addIssue(m.index + m[1].length + 1, m.index + m[0].length, verb, replacement, 'Subject–verb agreement', 'A singular “' + subj + '” usually needs the third-person singular verb form.');
-    }
-
-    return issues;
+    return out;
   }
 
   function appendGrammarLearningCard(text, lints){
-    if(!grammarPanelEl || !Array.isArray(lints) || !lints.length) return;
-    const allLints = lints;
-    grammarPanelEl.innerHTML = '';
-
-    const card = document.createElement('div');
-    card.className = 'grammar-card' + (allLints.length > 1 ? ' multi' : '');
-
-    const head = document.createElement('div');
-    head.className = 'grammar-card-head';
-    head.innerHTML = '<span class="grammar-badge">🚨</span><span class="grammar-card-title">Doki Grammar Police</span>';
-    card.appendChild(head);
-
-    const body = document.createElement('div');
-    body.className = 'grammar-card-body';
-
-    const intro = document.createElement('div');
-    intro.className = 'grammar-original';
-    intro.innerHTML = '<strong>Found '+ allLints.length +' issue' + (allLints.length === 1 ? '' : 's') + ':</strong>';
+    if(!messagesEl || !Array.isArray(lints) || !lints.length) return;
+    const card=document.createElement('div');
+    card.className='grammar-card'+(lints.length>1?' multi':'');
+    const head=document.createElement('div'); head.className='grammar-card-head';
+    head.innerHTML='<span class="grammar-badge">🚨</span><span class="grammar-card-title">Doki Grammar Police</span>'; card.appendChild(head);
+    const body=document.createElement('div'); body.className='grammar-card-body';
+    const intro=document.createElement('div'); intro.className='grammar-original';
+    intro.innerHTML='<strong>Found in:</strong> <code></code>';
+    intro.querySelector('code').textContent=lints.map(function(x){return x.problem || safeProblemText(x);}).filter(Boolean).slice(0,8).join(' · ') || 'the sentence';
     body.appendChild(intro);
-
-    let confidentCorrections = 0;
-    const correctionList = document.createElement('div');
-    correctionList.className = 'grammar-issue-list';
-
-    allLints.slice(0, 8).forEach(function(lint, index){
-      const problem = safeProblemText(lint);
-      const suggestions = safeSuggestions(lint);
-      const replacement = suggestions.length ? safeSuggestionText(suggestions[0]) : '';
-      const message = safeLintMessage(lint);
-      const kind = safeLintKind(lint);
-      const rule = classifyDokiRule(message, kind, problem, replacement);
-
-      const issue = document.createElement('div');
-      issue.className = 'grammar-issue';
-
-      const title = document.createElement('div');
-      title.className = 'grammar-issue-number';
-      title.textContent = 'Issue ' + (index + 1);
-      issue.appendChild(title);
-
-      const correction = document.createElement('div');
-      correction.className = 'grammar-correction';
-      const label = document.createElement('div');
-      label.className = 'grammar-correction-label';
-      label.textContent = 'Correction';
-      const corrText = document.createElement('div');
-      corrText.className = 'grammar-correction-text';
-      if(replacement){
-        confidentCorrections++;
-        corrText.textContent = (problem || 'Detected text') + ' → ' + replacement;
-      } else {
-        corrText.textContent = 'Doki detected a grammar issue, but Harper did not provide a confident replacement.';
-      }
-      correction.appendChild(label);
-      correction.appendChild(corrText);
-      issue.appendChild(correction);
-
-      const explanation = document.createElement('div');
-      explanation.className = 'grammar-explain';
-      explanation.textContent = explainDokiRule(rule, problem, replacement, message);
-      issue.appendChild(explanation);
-
-      const ruleTag = document.createElement('div');
-      ruleTag.className = 'grammar-rule';
-      ruleTag.textContent = rule;
-      issue.appendChild(ruleTag);
-
-      if(index === 0 && replacement){
-        const quip = document.createElement('div');
-        quip.className = 'grammar-quip';
-        quip.textContent = allLints.length > 1 ? 'Multiple grammar crimes. Doki has opened a full investigation.' : 'Doki has arrested the verb for agreeing with absolutely nobody.';
-        issue.appendChild(quip);
-      }
-
-      correctionList.appendChild(issue);
+    const intro2=document.createElement('div'); intro2.className='grammar-doki';
+    intro2.textContent='Found '+lints.length+' issue'+(lints.length===1?'':'s')+'. '+(lints.length>1?'Multiple grammar crimes. Doki has opened a full investigation.':'Doki has arrested the verb for agreeing with absolutely nobody.');
+    body.appendChild(intro2);
+    lints.forEach(function(lint,index){
+      const problem=lint.problem || safeProblemText(lint);
+      const replacement=lint.replacement!=null ? String(lint.replacement) : '';
+      const message=lint.message || safeLintMessage(lint);
+      const kind=lint.rule || safeLintKind(lint);
+      const rule=lint.rule || classifyDokiRule(message,kind,problem,replacement);
+      const explanation=lint.why || explainDokiRule(rule,problem,replacement,message);
+      const issue=document.createElement('div'); issue.className='grammar-issue';
+      issue.style.marginTop='10px'; issue.style.padding='9px'; issue.style.border='1px solid #d0c7b8'; issue.style.borderRadius='12px';
+      issue.innerHTML='<div style="font-weight:900;font-size:11px;margin-bottom:5px">Issue '+(index+1)+'</div>'+
+        '<div class="grammar-correction"><div class="grammar-correction-label">Correction</div><div class="grammar-correction-text"></div></div>'+
+        '<div class="grammar-explain"></div><div class="grammar-rule"></div>';
+      issue.querySelector('.grammar-correction-text').textContent=replacement ? problem+' → '+replacement : 'Doki detected a grammar issue, but Harper did not provide a confident replacement.';
+      issue.querySelector('.grammar-explain').textContent=explanation;
+      issue.querySelector('.grammar-rule').textContent=rule;
+      body.appendChild(issue);
     });
-
-    body.appendChild(correctionList);
-
-    if(allLints.length === 1 && confidentCorrections === 1){
-      const practice = document.createElement('div');
-      practice.className = 'grammar-practice';
-      practice.innerHTML = '<div class="grammar-practice-label">Your turn: fix Doki’s sentence</div><div class="grammar-practice-row"><input class="grammar-practice-input" type="text" autocomplete="off" placeholder="Type your corrected sentence"><button class="grammar-practice-btn" type="button">Check fix</button></div><div class="grammar-practice-result" aria-live="polite"></div>';
-      const practiceInput = practice.querySelector('.grammar-practice-input');
-      const practiceBtn = practice.querySelector('.grammar-practice-btn');
-      const result = practice.querySelector('.grammar-practice-result');
-      let expected = null;
-      void buildCorrectedText(text, lints).then(function(corrected){ expected = corrected.trim(); });
-      practiceBtn.addEventListener('click', function(){
-        if(!expected){ result.className='grammar-practice-result bad'; result.textContent='Doki is still calculating the answer. Try again in a moment.'; return; }
-        const got = practiceInput.value.trim().replace(/\s+/g,' ');
-        const want = expected.replace(/\s+/g,' ');
-        if(got && got.toLowerCase() === want.toLowerCase()){
-          result.className='grammar-practice-result good';
-          result.textContent='✓ Correct. Doki reluctantly approves.';
-        } else {
-          result.className='grammar-practice-result bad';
-          result.textContent='Not quite. Read the correction above and try again.';
-        }
-      });
-      practiceInput.addEventListener('keydown', function(e){ if(e.key === 'Enter'){ e.preventDefault(); practiceBtn.click(); } });
-      body.appendChild(practice);
-    }
-
-    const feedback = document.createElement('div');
-    feedback.className = 'grammar-feedback';
-    feedback.innerHTML = '<span>Was this explanation useful?</span><button type="button">👍</button><button type="button">👎</button>';
-    const fButtons = feedback.querySelectorAll('button');
-    fButtons[0].addEventListener('click', function(){ feedback.querySelector('span').textContent='Thanks. Doki will pretend to value your opinion.'; });
-    fButtons[1].addEventListener('click', function(){ feedback.querySelector('span').textContent='Feedback noted. Doki remains suspicious.'; });
-    body.appendChild(feedback);
-
-    card.appendChild(body);
-    grammarPanelEl.appendChild(card);
-    grammarPanelEl.classList.add('visible');
-    grammarPanelEl.scrollTop = 0;
+    const feedback=document.createElement('div'); feedback.className='grammar-feedback';
+    feedback.innerHTML='<span>Was this explanation useful?</span><button type="button">👍</button><button type="button">👎</button>';
+    const fb=feedback.querySelectorAll('button');
+    fb[0].addEventListener('click',function(){feedback.querySelector('span').textContent='Thanks. Doki will pretend to value your opinion.';});
+    fb[1].addEventListener('click',function(){feedback.querySelector('span').textContent='Feedback noted. Doki remains suspicious.';});
+    body.appendChild(feedback); card.appendChild(body); messagesEl.appendChild(card); scrollToBottom();
   }
 
   function showGrammarStage3BResult(lints, originalText){
@@ -1529,20 +1347,18 @@ import { binaryInlined } from 'https://unpkg.com/harper.js@2.4.0/dist/binaryInli
     if(!Array.isArray(lints)){
       grammarStatusEl.className='grammar-status offline';
       grammarStatusEl.textContent='⚠ Grammar engine unavailable · chat still works';
-      if(grammarPanelEl){ grammarPanelEl.innerHTML=''; grammarPanelEl.classList.remove('visible'); }
       return;
     }
-    const supplemental = buildDokiSupplementalIssues(originalText, lints);
-    const allLints = lints.concat(supplemental);
-    if(allLints.length === 0){
+    const combined=lints.slice();
+    buildDokiFallbackLints(originalText,lints).forEach(function(x){ combined.push(x); });
+    if(combined.length===0){
       grammarStatusEl.className='grammar-status clean';
       grammarStatusEl.textContent='✓ Grammar scan clean';
-      if(grammarPanelEl){ grammarPanelEl.innerHTML=''; grammarPanelEl.classList.remove('visible'); }
       return;
     }
     grammarStatusEl.className='grammar-status issue';
-    grammarStatusEl.textContent='⚠ Grammar scan found ' + allLints.length + ' issue' + (allLints.length === 1 ? '' : 's');
-    appendGrammarLearningCard(originalText, allLints);
+    grammarStatusEl.textContent='⚠ Grammar scan found '+combined.length+' issue'+(combined.length===1?'':'s');
+    appendGrammarLearningCard(originalText,combined);
   }
 
   async function handleSend(){
@@ -1571,7 +1387,6 @@ import { binaryInlined } from 'https://unpkg.com/harper.js@2.4.0/dist/binaryInli
     // clears the meter when the field becomes empty; doing it in the opposite
     // order was silently erasing the grammar result in the previous build.
     inputEl.value = '';
-    if(grammarPanelEl){ grammarPanelEl.innerHTML=''; grammarPanelEl.classList.remove('visible'); }
     meterEl.innerHTML = '<span class="grammar-scan-status">Grammar scan…</span>';
 
     // Pass 3B adds local correction/explanation/learning UI. Pond Points are still not awarded here; that belongs to Pass 3C.
