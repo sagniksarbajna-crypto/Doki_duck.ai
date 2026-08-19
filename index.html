@@ -944,6 +944,87 @@ import { binaryInlined } from 'https://unpkg.com/harper.js@2.4.0/dist/binaryInli
   // Pass 3B: monotonically increasing scan token prevents an older async Harper
   // result from overwriting a newer message's grammar result.
   let grammarScanToken = 0;
+
+  // PASS 3C-A: lightweight session-only context buffer + escalation gate.
+  // This does not call Gemini yet. It only decides whether a future contextual
+  // reasoner should be consulted, while preserving the current Pass 3B UI/logic.
+  const DOKI_CONTEXT_MAX_SENTENCES = 3;
+  const dokiGrammarContext = [];
+  const dokiGrammarRoute = { decision:'local', reasons:[], context:[] };
+
+  function dokiSplitSentences(text){
+    return String(text || '')
+      .replace(/\s+/g,' ')
+      .trim()
+      .split(/(?<=[.!?])\s+(?=[A-Z0-9"“‘])/u)
+      .map(function(x){ return x.trim(); })
+      .filter(Boolean);
+  }
+
+  function dokiContextSnapshot(){
+    return dokiGrammarContext.slice(-DOKI_CONTEXT_MAX_SENTENCES);
+  }
+
+  function dokiRecordContext(text){
+    const parts=dokiSplitSentences(text);
+    parts.forEach(function(sentence){
+      if(!sentence) return;
+      dokiGrammarContext.push(sentence);
+    });
+    while(dokiGrammarContext.length>DOKI_CONTEXT_MAX_SENTENCES){
+      dokiGrammarContext.shift();
+    }
+  }
+
+  function dokiHasContextSignal(text){
+    const s=String(text||'').toLowerCase();
+    return /\b(yesterday|today|tomorrow|earlier|previously|last\s+(?:night|week|month|year)|\d+\s+(?:days?|weeks?|months?|years?)\s+ago|then|afterward|beforehand)\b/.test(s) ||
+      /\b(if|although|because|while|when|before|after|unless|since|who|which|that)\b/.test(s);
+  }
+
+  function dokiHasUnresolvedPronoun(text){
+    return /^(?:\s*)(?:he|she|they|it|this|that|these|those|we|you)\b/i.test(String(text||'')) ||
+      /\b(?:he|she|they|it|this|that|these|those)\b/i.test(String(text||''));
+  }
+
+  function dokiEstimateClauseComplexity(text){
+    const s=String(text||'');
+    const conjunctions=(s.match(/\b(and|but|although|because|while|when|if|unless|which|who|that)\b/gi)||[]).length;
+    const commas=(s.match(/,/g)||[]).length;
+    const words=(s.match(/\S+/g)||[]).length;
+    return {conjunctions,commas,words,complex:(conjunctions>=2 || commas>=2 || words>=28)};
+  }
+
+  function dokiShouldEscalateToContext(text, combinedLints){
+    const source=String(text||'').trim();
+    const issues=Array.isArray(combinedLints)?combinedLints:[];
+    const reasons=[];
+    const complexity=dokiEstimateClauseComplexity(source);
+    const context=dokiContextSnapshot();
+    const hasNoConfidentReplacement=issues.some(function(x){ return !x || !String(x.replacement||'').trim(); });
+    const hasMultipleIssues=issues.length>=3;
+
+    if(hasNoConfidentReplacement) reasons.push('no_confident_local_replacement');
+    if(context.length>0 && dokiHasContextSignal(source)) reasons.push('context_or_tense_signal');
+    if(context.length>0 && dokiHasUnresolvedPronoun(source) && /[.!?]/.test(source)) reasons.push('possible_coreference');
+    if(complexity.complex) reasons.push('complex_clause_structure');
+    if(/\b(if|would have|could have|should have|might have|were)\b/i.test(source)) reasons.push('conditional_or_subjunctive');
+
+    // Do not escalate short conversational fragments merely because they lack a subject.
+    if((source.match(/\S+/g)||[]).length<3) reasons.splice(0,reasons.length);
+
+    const decision=reasons.length ? 'contextual' : 'local';
+    dokiGrammarRoute.decision=decision;
+    dokiGrammarRoute.reasons=reasons;
+    dokiGrammarRoute.context=context;
+    return {decision,reasons,context};
+  }
+
+  window.dokiGrammar3C = {
+    getContext:function(){ return dokiContextSnapshot(); },
+    getRoute:function(){ return {decision:dokiGrammarRoute.decision,reasons:dokiGrammarRoute.reasons.slice(),context:dokiGrammarRoute.context.slice()}; },
+    resetContext:function(){ dokiGrammarContext.length=0; dokiGrammarRoute.decision='local'; dokiGrammarRoute.reasons=[]; dokiGrammarRoute.context=[]; }
+  };
   const incogBtn = document.getElementById('incogBtn');
   const headerStatus = document.getElementById('headerStatus');
   const themeColorMeta = document.getElementById('themeColorMeta');
@@ -1376,6 +1457,34 @@ import { binaryInlined } from 'https://unpkg.com/harper.js@2.4.0/dist/binaryInli
       }
     }
 
+    // 1b) High-confidence perfect-tense and do-support forms.
+    // Only correct unmistakable finite-form mismatches; do not invent broad
+    // tense rules. This covers cases such as "has ate", "had went", and
+    // "did went" while leaving valid constructions untouched.
+    const perfectForms={
+      went:'gone', ate:'eaten', saw:'seen', did:'done', was:'been', were:'been',
+      took:'taken', came:'come', ran:'run', wrote:'written', knew:'known',
+      thought:'thought', brought:'brought', bought:'bought', gave:'given',
+      felt:'felt', slept:'slept', left:'left', found:'found', made:'made',
+      got:'gotten', chose:'chosen', drove:'driven', began:'begun', became:'become'
+    };
+    const perfect=/\b(has|have|had)\s+(went|ate|saw|did|was|were|took|came|ran|wrote|knew|thought|brought|bought|gave|felt|slept|left|found|made|got|chose|drove|began|became)\b/gi;
+    while((m=perfect.exec(source))){
+      const wrong=m[2], replacement=perfectForms[wrong.toLowerCase()];
+      if(!replacement) continue;
+      const start=m.index+m[0].lastIndexOf(wrong);
+      add(start,start+wrong.length,wrong,replacement,'Verb tense / form','After “has”, “have”, or “had”, this construction requires the past participle form of the verb.');
+    }
+
+    const didPast=/\b(did)\s+(went|ate|saw|was|were|took|came|ran|wrote|knew|thought|brought|bought|gave|felt|slept|left|found|made|got|chose|drove|began|became)\b/gi;
+    const didBases={went:'go',ate:'eat',saw:'see',was:'be',were:'be',took:'take',came:'come',ran:'run',wrote:'write',knew:'know',thought:'think',brought:'bring',bought:'buy',gave:'give',felt:'feel',slept:'sleep',left:'leave',found:'find',made:'make',got:'get',chose:'choose',drove:'drive',began:'begin',became:'become'};
+    while((m=didPast.exec(source))){
+      const wrong=m[2], replacement=didBases[wrong.toLowerCase()];
+      if(!replacement) continue;
+      const start=m.index+m[0].lastIndexOf(wrong);
+      add(start,start+wrong.length,wrong,replacement,'Auxiliary verb','After “did”, the main verb normally stays in its base form.');
+    }
+
     // 2) Subject + auxiliary agreement.
     const auxAgree=/\b(he|she|it|they|we|you)\s+(doesn['’]t|does not|don['’]t|do not|is|are|was|were|has|have)\b/gi;
     while((m=auxAgree.exec(source))){
@@ -1387,6 +1496,14 @@ import { binaryInlined } from 'https://unpkg.com/harper.js@2.4.0/dist/binaryInli
       }else{
         const map={"doesn't":"don't",'does not':'do not',is:'are',was:'were',has:'have'};
         replacement=map[wrong.toLowerCase()]||'';
+      }
+      // Protect hypothetical/subjunctive were constructions such as "If I were..."
+      // and "If he were...". These are grammatically valid and must not be
+      // flattened into ordinary past-tense agreement.
+      if(replacement && wrong.toLowerCase()==='were') {
+        const beforeWere = source.slice(0, m.index + m[0].lastIndexOf(wrong));
+        const hypotheticalWere = /\bif\b[^.!?]{0,80}\b(?:i|he|she|it|we|they)\s*$/i.test(beforeWere);
+        if(hypotheticalWere) replacement='';
       }
       if(replacement){
         const start=m.index+m[0].lastIndexOf(wrong);
@@ -1604,10 +1721,12 @@ import { binaryInlined } from 'https://unpkg.com/harper.js@2.4.0/dist/binaryInli
       }
     }
 
+    const route=dokiShouldEscalateToContext(originalText, combined);
     if(combined.length===0){
       grammarStatusEl.className='grammar-status clean';
       grammarStatusEl.textContent='✓ Grammar scan clean';
       hideGrammarLearningPanel();
+      dokiRecordContext(originalText);
       return;
     }
 
@@ -1615,6 +1734,11 @@ import { binaryInlined } from 'https://unpkg.com/harper.js@2.4.0/dist/binaryInli
     grammarStatusEl.textContent='⚠ Grammar scan found '+combined.length+' issue'+(combined.length===1?'':'s');
     try{
       appendGrammarLearningCard(originalText,combined);
+      if(grammarLearningPanel){
+        grammarLearningPanel.dataset.route=route.decision;
+        grammarLearningPanel.dataset.routeReasons=route.reasons.join(',');
+      }
+      dokiRecordContext(originalText);
     }catch(error){
       console.warn('Doki Duck AI: Grammar result UI failed.',error);
       hideGrammarLearningPanel();
@@ -1681,6 +1805,7 @@ import { binaryInlined } from 'https://unpkg.com/harper.js@2.4.0/dist/binaryInli
 
   function setIncognito(on){
     incognito = on;
+    dokiGrammar3C.resetContext();
     hideGrammarLearningPanel();
     grammarScanToken++;
     phone.classList.toggle('incognito', on);
