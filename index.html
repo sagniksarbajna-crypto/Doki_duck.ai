@@ -1007,10 +1007,22 @@ import { binaryInlined } from 'https://unpkg.com/harper.js@2.4.0/dist/binaryInli
     // Safe local path: short/simple messages with no contextual signals.
     if(!String(text||'').trim()) return {route:'local',reason:'empty'};
 
-    const hasNoSuggestion=normalized.some(function(l){
-      return safeSuggestions(l).length===0 && !(l && typeof l.replacement==='string' && l.replacement.trim());
+    // A missing Harper suggestion is only an escalation signal when Doki also
+    // lacks a high-confidence local replacement for the same span. This keeps
+    // ordinary cases such as “She go” local while reserving Gemini for genuinely
+    // unresolved cases.
+    const fallbackForGate=buildDokiFallbackLints(text, normalized);
+    const hasUnresolvedNoSuggestion=normalized.some(function(l){
+      const suggestion = safeSuggestions(l).length || (l && typeof l.replacement==='string' && l.replacement.trim());
+      if(suggestion) return false;
+      const sp=spanOfLint(l);
+      const covered=fallbackForGate.some(function(f){
+        const fp=typeof f.span==='function' ? f.span() : null;
+        return sp && fp && !(fp.end<=sp.start || fp.start>=sp.end) && !!f.replacement;
+      });
+      return !covered;
     });
-    if(hasNoSuggestion) reasons.push('Harper issue without a confident replacement');
+    if(hasUnresolvedNoSuggestion) reasons.push('Harper issue without a confident replacement');
     if(signals.crossSentencePronoun) reasons.push('cross-sentence pronoun/reference');
     if(signals.conditional) reasons.push('conditional or modal-perfect structure');
     if(signals.participle) reasons.push('opening participle/modifier structure');
@@ -1276,6 +1288,41 @@ import { binaryInlined } from 'https://unpkg.com/harper.js@2.4.0/dist/binaryInli
 
     messagesEl.appendChild(row);
     scrollToBottom();
+  }
+
+  function validateFutureGeminiResult(result, originalText){
+    // Pass 3C-B2 safety shell. Gemini is not called yet; this validator is kept
+    // pure and side-effect free so B3 can reuse it without changing the local path.
+    const out={ok:false,status:'uncertain',confidence:0,corrections:[],reason:'invalid or uncertain result'};
+    if(!result || typeof result!=='object') return out;
+    if(!['clean','corrected','uncertain'].includes(result.status)) return out;
+    const confidence=Number(result.confidence);
+    if(!Number.isFinite(confidence) || confidence<0 || confidence>1) return out;
+    out.status=result.status; out.confidence=confidence;
+    if(result.status==='clean'){
+      out.ok=true; out.corrections=[]; out.reason='clean'; return out;
+    }
+    if(result.status==='uncertain'){
+      out.ok=confidence>=0.85; out.corrections=[]; out.reason='uncertain'; return out;
+    }
+    if(!Array.isArray(result.corrections) || !result.corrections.length) return out;
+    const original=String(originalText||'');
+    const protectedTerms=['doki','doki duck','doki duck ai','doki grammar police','pond points','pond leaderboard','trophy room'];
+    const cleanTerm=function(v){ return String(v||'').toLowerCase().replace(/^[^a-z0-9]+|[^a-z0-9]+$/g,'').replace(/'s$/,''); };
+    for(const c of result.corrections){
+      if(!c || typeof c!=='object') return out;
+      const a=String(c.original||'').trim(), b=String(c.replacement||'').trim();
+      if(!a || !b || a===b) return out;
+      if(protectedTerms.includes(cleanTerm(a)) || protectedTerms.includes(cleanTerm(b))) return out;
+      if(a.length>Math.max(40,b.length*3+12) || b.length>Math.max(40,a.length*3+12)) return out;
+    }
+    if(confidence<0.85) return out;
+    out.ok=true; out.corrections=result.corrections.map(function(c){return {
+      original:String(c.original||''), replacement:String(c.replacement||''),
+      reason:String(c.reason||''), category:String(c.category||'Grammar / sentence structure')
+    };});
+    out.reason='validated';
+    return out;
   }
 
   async function checkGrammarForStage3A(text, contextBefore){
