@@ -724,6 +724,7 @@
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-app-check-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-database-compat.js"></script>
 <script type="module">
@@ -816,6 +817,13 @@ import { binaryInlined } from 'https://unpkg.com/harper.js@2.4.0/dist/binaryInli
     try {
       if(!window.firebase) throw new Error('Firebase SDK did not load.');
       if(!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+
+      // Firebase App Check: reCAPTCHA Enterprise attestation.
+      // Initialize this before accessing Auth or Realtime Database.
+      firebase.appCheck().activate(
+        new firebase.appCheck.ReCaptchaEnterpriseProvider('6LfWh40tAAAAANQNJVVc4CNshFFAMxSSJW6s38my'),
+        true
+      );
 
       const auth = firebase.auth();
       const database = firebase.database();
