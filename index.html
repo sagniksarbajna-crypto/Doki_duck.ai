@@ -1525,6 +1525,21 @@ import { binaryInlined } from 'https://unpkg.com/harper.js@2.4.0/dist/binaryInli
     } catch(e){ return ''; }
   }
 
+  function isContextSensitiveConditional(originalText, lint){
+    const sp=spanOfLint(lint);
+    if(!sp || typeof sp.start!=='number' || typeof sp.end!=='number') return false;
+    const text=String(originalText||'');
+    const before=text.slice(Math.max(0,sp.start-120),sp.start).toLowerCase();
+    const after=text.slice(sp.end,Math.min(text.length,sp.end+160)).toLowerCase();
+    const local=before+' '+after;
+    const problem=safeProblemText(lint).trim().toLowerCase();
+    const replacement=suggestionOfLint(lint).trim().toLowerCase();
+    if(problem==='were' && replacement==='was' && /\b(if|wish|as\s+if|as\s+though)\b[^.!?]{0,90}$/.test(before)) return true;
+    if(/\bwould\s+have\b/.test(problem) || /\bwould\s+have\b/.test(replacement)) return true;
+    if(/\bif\b/.test(local) && /\bwould\s+have\b/.test(local)) return true;
+    return false;
+  }
+
   function showGrammarStage3BResult(lints, originalText, scanToken){
     if(scanToken != null && scanToken !== grammarScanToken) return;
     if(!grammarStatusEl) return;
@@ -1561,6 +1576,7 @@ import { binaryInlined } from 'https://unpkg.com/harper.js@2.4.0/dist/binaryInli
     // Prefer a confident Harper suggestion. Otherwise, prefer a high-confidence
     // Doki fallback occupying the same span. This is the critical Pass 3B merge.
     filtered.forEach(function(lint){
+      if(isContextSensitiveConditional(originalText, lint)) return;
       const existingReplacement=suggestionOfLint(lint);
       if(existingReplacement){
         addNormalized(lint);
@@ -1605,6 +1621,18 @@ import { binaryInlined } from 'https://unpkg.com/harper.js@2.4.0/dist/binaryInli
     }
 
     if(combined.length===0){
+      const deferred=filtered.some(function(lint){ return isContextSensitiveConditional(originalText, lint); });
+      if(deferred){
+        grammarStatusEl.className='grammar-status issue';
+        grammarStatusEl.textContent='🧠 Context-dependent grammar · no automatic correction';
+        grammarLearningBody.innerHTML='';
+        const note=document.createElement('div');
+        note.className='grammar-doki';
+        note.textContent='Doki found a context-sensitive construction and will not guess. A deeper Gemini check can handle this later.';
+        grammarLearningBody.appendChild(note);
+        showGrammarLearningPanel();
+        return;
+      }
       grammarStatusEl.className='grammar-status clean';
       grammarStatusEl.textContent='✓ Grammar scan clean';
       hideGrammarLearningPanel();
