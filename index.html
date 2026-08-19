@@ -294,7 +294,7 @@
   .phone.incognito .grammar-status.offline{color:#d08f8f}
 
   /* PASS 3B: dedicated grammar learning panel */
-  .grammar-learning-panel{display:none;max-height:min(42dvh,360px);margin:0 12px 7px;background:#fffdf6;border:2px solid var(--ink);border-radius:16px;overflow:hidden;box-shadow:0 6px 18px rgba(0,0,0,.10);overscroll-behavior:contain;touch-action:pan-y;-webkit-overflow-scrolling:touch;}
+  .grammar-learning-panel{display:none;flex:0 1 auto;position:relative;z-index:20;min-height:0;max-height:min(42dvh,360px);margin:0 12px 7px;background:#fffdf6;border:2px solid var(--ink);border-radius:16px;overflow:hidden;box-shadow:0 6px 18px rgba(0,0,0,.10);overscroll-behavior:contain;touch-action:pan-y;-webkit-overflow-scrolling:touch;}
   .grammar-learning-panel.visible{display:flex;flex-direction:column;}
   .grammar-learning-head{position:sticky;top:0;z-index:2;padding:9px 12px;background:var(--yellow);border-bottom:1px solid #c99f28;font-weight:900;font-size:13px;flex:0 0 auto;}
   .grammar-learning-body{padding:10px 11px 12px;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y;scroll-behavior:smooth;min-height:0;}
@@ -638,7 +638,7 @@
   <div class="meter" id="meter">&nbsp;</div>
 
   <div class="grammar-status" id="grammarStatus" aria-live="polite">Grammar engine: starting…</div>
-  <div class="grammar-learning-panel" id="grammarLearningPanel" aria-live="polite" aria-hidden="true">
+  <div class="grammar-learning-panel" id="grammarLearningPanel" role="region" aria-label="Doki Grammar Police" aria-live="polite" aria-hidden="true">
     <div class="grammar-learning-head" id="grammarLearningHead">🚨 Doki Grammar Police</div>
     <div class="grammar-learning-body" id="grammarLearningBody"></div>
   </div>
@@ -941,6 +941,9 @@ import { binaryInlined } from 'https://unpkg.com/harper.js@2.4.0/dist/binaryInli
   const grammarLearningPanel = document.getElementById('grammarLearningPanel');
   const grammarLearningHead = document.getElementById('grammarLearningHead');
   const grammarLearningBody = document.getElementById('grammarLearningBody');
+  // Pass 3B: monotonically increasing scan token prevents an older async Harper
+  // result from overwriting a newer message's grammar result.
+  let grammarScanToken = 0;
   const incogBtn = document.getElementById('incogBtn');
   const headerStatus = document.getElementById('headerStatus');
   const themeColorMeta = document.getElementById('themeColorMeta');
@@ -1298,102 +1301,143 @@ import { binaryInlined } from 'https://unpkg.com/harper.js@2.4.0/dist/binaryInli
   }
 
   function buildDokiFallbackLints(text, existingLints){
-    const out=[]; const source=String(text||'');
-    function overlaps(start,end){
-      return (existingLints||[]).some(function(l){
-        try{ const sp=l.span(); return sp && !(end<=sp.start || start>=sp.end); }catch(e){ return false; }
+    const out=[];
+    const source=String(text || '');
+    const existing=Array.isArray(existingLints) ? existingLints : [];
+
+    function spanOf(l){
+      try { return (l && typeof l.span === 'function') ? l.span() : null; } catch(e){ return null; }
+    }
+    function suggestionOf(l){
+      try {
+        if(l && typeof l.replacement === 'string' && l.replacement.trim()) return l.replacement.trim();
+        const suggestions=safeSuggestions(l);
+        return suggestions.length ? safeSuggestionText(suggestions[0]).trim() : '';
+      } catch(e){ return ''; }
+    }
+    function overlapsExisting(start,end){
+      return existing.some(function(l){
+        const sp=spanOf(l);
+        return sp && !(end<=sp.start || start>=sp.end);
+      });
+    }
+    function existingSuggestionOverlaps(start,end){
+      return existing.some(function(l){
+        const sp=spanOf(l);
+        return sp && !(end<=sp.start || start>=sp.end) && !!suggestionOf(l);
       });
     }
     function add(start,end,problem,replacement,rule,why){
-      if(!problem || !replacement || problem.toLowerCase()===replacement.toLowerCase()) return;
-      if(overlaps(start,end)) return;
-      if(out.some(x=>x.start===start && x.end===end && x.replacement.toLowerCase()===replacement.toLowerCase())) return;
-      out.push({start:start,end:end,problem:problem,replacement:replacement,rule:rule,why:why});
+      if(!problem || !replacement || problem.trim().toLowerCase()===replacement.trim().toLowerCase()) return;
+      if(existingSuggestionOverlaps(start,end)) return;
+      if(out.some(function(x){ return x.start===start && x.end===end; })) return;
+      out.push({start,end,span:function(){return {start,end};},problem,replacement,rule,why});
     }
 
-    // High-confidence auxiliary + base-verb errors. Only alter the verb token;
-    // do not rewrite the auxiliary itself because Harper may already be reporting it.
+    const irregularPast={
+      go:'went', be:'was', have:'had', see:'saw', take:'took', eat:'ate', come:'came', run:'ran',
+      write:'wrote', give:'gave', make:'made', know:'knew', think:'thought', bring:'brought', buy:'bought',
+      find:'found', get:'got', say:'said', tell:'told', do:'did', read:'read', sleep:'slept', feel:'felt',
+      keep:'kept', leave:'left', come:'came', begin:'began', become:'became', choose:'chose', drive:'drove'
+    };
+    const baseVerbWhitelist=new Set([
+      'go','want','like','love','need','work','play','walk','run','talk','feel','think','know','look','come','live','study','watch','listen','read','write','wait','help','try','believe','hope','agree','understand','remember','forget','start','stop','use','make','take','give','tell','ask','answer','laugh','cry','smile','dance','sing','cook','drive','eat','drink','sleep','open','close','clean','buy','sell','pay','call','text','share','follow','miss','hate','enjoy','prefer','plan','decide','choose','learn','teach','explain','discuss','fight','win','lose','practice','train','exercise','swim','jump','climb','build','fix','break','create','design','draw','paint','quack','see','have'
+    ]);
+    const protectedNames=['doki','doki duck','doki duck ai','doki grammar police','pond points','pond leaderboard','trophy room'];
+    function isProtected(word){
+      const clean=String(word||'').trim().toLowerCase().replace(/^[^a-z0-9]+|[^a-z0-9]+$/g,'').replace(/'s$/,'');
+      return protectedNames.includes(clean);
+    }
+    function thirdPerson(v){
+      if(/(?:ch|sh)$/i.test(v) || /[sxz]$/i.test(v) || /[^aeiou]o$/i.test(v)) return v+'es';
+      if(/[^aeiou]y$/i.test(v)) return v.slice(0,-1)+'ies';
+      return v+'s';
+    }
+    function timeCueAt(pos){
+      const ctx=(source.slice(Math.max(0,pos-70),pos)+' '+source.slice(pos,Math.min(source.length,pos+90))).toLowerCase();
+      return /\b(yesterday|last\s+(?:night|week|month|year|day)|\d+\s+(?:days?|weeks?|months?|years?)\s+ago|earlier|previously|the\s+day\s+before)\b/.test(ctx);
+    }
+
+    // 1) Auxiliary + inflected verb. These are high-confidence because the auxiliary itself constrains the main verb.
     const aux=/\b(doesn['’]t|does not|don['’]t|do not|didn['’]t|did not|can['’]t|cannot|won['’]t|will not|shouldn['’]t|should not|couldn['’]t|could not|wouldn['’]t|would not|mustn['’]t|must not)\s+([A-Za-z]+)\b/gi;
     let m;
     while((m=aux.exec(source))){
-      const verb=m[2]; let base='';
-      if(!/[A-Za-z]/.test(verb)) continue;
-      if(/ies$/i.test(verb)) base=verb.slice(0,-3)+'y';
+      const auxText=m[1], verb=m[2];
+      let base='';
+      const low=verb.toLowerCase();
+      const irregular={went:'go',gone:'go',was:'be',were:'be',ate:'eat',eaten:'eat',saw:'see',seen:'see',did:'do',done:'do',had:'have',made:'make',took:'take',taken:'take',came:'come',ran:'run',wrote:'write',written:'write',knew:'know',known:'know',thought:'think',brought:'bring',bought:'buy',gave:'give',felt:'feel',slept:'sleep',left:'leave',found:'find'};
+      if(/^didn(?:'|’)t$|^did not$/i.test(auxText) && irregular[low]) base=irregular[low];
+      else if(/ies$/i.test(verb)) base=verb.slice(0,-3)+'y';
       else if(/(?:ches|shes|xes|zes|oes|sses)$/i.test(verb)) base=verb.slice(0,-2);
       else if(/s$/i.test(verb) && !/ss$/i.test(verb)) base=verb.slice(0,-1);
-      const irregular={went:'go',gone:'go',was:'be',were:'be',ate:'eat',eaten:'eat',saw:'see',seen:'see',did:'do',done:'do',had:'have',made:'make',took:'take',taken:'take',came:'come',ran:'run',wrote:'write',written:'write'};
-      if(/^didn(?:'|’)t$/i.test(m[1]) && irregular[verb.toLowerCase()]) base=irregular[verb.toLowerCase()];
-      if(base && base.toLowerCase()!==verb.toLowerCase()){
+      if(base && base.toLowerCase()!==low){
         const start=m.index+m[0].lastIndexOf(verb);
         add(start,start+verb.length,verb,base,'Auxiliary verb','After a helping verb such as “doesn’t”, “don’t”, or “didn’t”, the main verb normally stays in its base form.');
       }
     }
 
-    // High-confidence pronoun agreement rules.
-    const pronounPairs = /\b(he|she|it|they|we|you)\s+(doesn't|does not|don't|do not|are|were|have|has|is|was)\b/gi;
-    while((m=pronounPairs.exec(source))){
-      const subject=m[1].toLowerCase();
-      const wrong=m[2];
+    // 2) Subject + auxiliary agreement.
+    const auxAgree=/\b(he|she|it|they|we|you)\s+(doesn['’]t|does not|don['’]t|do not|is|are|was|were|has|have)\b/gi;
+    while((m=auxAgree.exec(source))){
+      const subject=m[1].toLowerCase(), wrong=m[2];
       let replacement='';
       if(/^(he|she|it)$/.test(subject)){
         const map={"don't":"doesn't",'do not':'does not',are:'is',were:'was',have:'has'};
-        replacement=map[wrong.toLowerCase()] || '';
+        replacement=map[wrong.toLowerCase()]||'';
       }else{
         const map={"doesn't":"don't",'does not':'do not',is:'are',was:'were',has:'have'};
-        replacement=map[wrong.toLowerCase()] || '';
+        replacement=map[wrong.toLowerCase()]||'';
       }
       if(replacement){
-        const start=m.index + m[0].toLowerCase().lastIndexOf(wrong.toLowerCase());
+        const start=m.index+m[0].lastIndexOf(wrong);
         add(start,start+wrong.length,wrong,replacement,'Subject–verb agreement','The subject and verb should agree in number and person.');
       }
     }
 
-    // High-confidence: singular subject (he/she/it) directly followed by a bare
-    // base-form verb that needs the third-person -s. Deliberately restricted to a
-    // curated whitelist of common, unambiguous action verbs so this never fires on
-    // an irregular past tense (went, ate, saw), a modal (will, can, should), or a
-    // be/have/do form already covered by the rule above — those are excluded by
-    // construction since they simply aren't in the whitelist.
-    const baseVerbWhitelist = new Set(['go','want','like','love','need','work','play','walk','run','talk',
-      'feel','think','know','look','come','live','study','watch','listen','read','write','wait','help',
-      'try','believe','hope','agree','understand','remember','forget','start','stop','use','make','take',
-      'give','tell','ask','answer','laugh','cry','smile','dance','sing','cook','drive','eat','drink','sleep',
-      'open','close','clean','buy','sell','pay','call','text','share','follow','miss','hate','enjoy','prefer',
-      'plan','decide','choose','learn','teach','explain','discuss','fight','win','lose','practice','train',
-      'exercise','swim','jump','climb','build','fix','break','create','design','draw','paint','quack']);
-    function addThirdPersonS(v){
-      if(/(?:ch|sh)$/i.test(v) || /[sxz]$/i.test(v)) return v+'es';
-      if(/[^aeiou]o$/i.test(v)) return v+'es';
-      if(/[^aeiou]y$/i.test(v)) return v.slice(0,-1)+'ies';
-      return v+'s';
-    }
-    const bareVerb = /\b(he|she|it)\s+([A-Za-z]+)\b/gi;
-    while((m=bareVerb.exec(source))){
-      const verb = m[2];
-      if(!baseVerbWhitelist.has(verb.toLowerCase())) continue;
-      const start = m.index + m[0].lastIndexOf(verb);
-      add(start, start+verb.length, verb, addThirdPersonS(verb), 'Subject–verb agreement',
-        'A singular subject like “he”, “she”, or “it” normally pairs with the third-person -s form of the verb.');
+    // 3) Bare he/she/it + common base verb. Keep a curated list for high confidence.
+    const bare=/\b(he|she|it)\s+([A-Za-z]+)\b/gi;
+    while((m=bare.exec(source))){
+      const subject=m[1].toLowerCase(), verb=m[2], low=verb.toLowerCase();
+      if(!baseVerbWhitelist.has(low) || isProtected(verb)) continue;
+      if(['is','has','does','was','were','can','will','would','could','should','may','might','must'].includes(low)) continue;
+      const start=m.index+m[0].lastIndexOf(verb);
+      let replacement='';
+      let why='A singular subject like “he”, “she”, or “it” normally pairs with the third-person -s form of the verb.';
+      if(low==='have') replacement='has';
+      else if(timeCueAt(m.index) && irregularPast[low]){
+        replacement=irregularPast[low];
+        why='The time expression suggests a past-tense form, so Doki uses the corresponding past-tense verb.';
+      }else replacement=thirdPerson(verb);
+      add(start,start+verb.length,verb,replacement,'Subject–verb agreement',why);
     }
 
-    // High-confidence plural-subject + third-person -s mismatch.
-    // Examples: “friends likes” → “friends like”, “ducks goes” → “ducks go”.
-    const plural=/\b([A-Za-z][A-Za-z'-]*(?:s|people|children|men|women))\s+([A-Za-z]+s)\b/gi;
+    // 4) High-confidence plural subject + third-person singular verb.
+    // Avoid the old broad `word ending in s` heuristic: singular nouns such as
+    // class, bus, news and glass must never be treated as plural automatically.
+    const pluralNounSet=new Set([
+      'friends','ducks','students','children','people','men','women','parents','teachers','players',
+      'brothers','sisters','dogs','cats','birds','animals','users','players','workers','teams',
+      'families','stories','countries','games','books','cars','phones','days','weeks','months',
+      'years','students','teachers','siblings','parents','friends'
+    ]);
+    const plural=/\b(?:my|your|our|their|these|those|the|many|several|two|three|four|five|both)\s+([A-Za-z][A-Za-z'-]*)\s+([A-Za-z]+s)\b/gi;
     while((m=plural.exec(source))){
-      const subject=m[1], verb=m[2];
-      // Do not treat possessives or common plural nouns as subjects blindly.
-      if(/'s$/i.test(subject)) continue;
-      if(!/s$/i.test(verb) || /ss$/i.test(verb)) continue;
+      const subject=m[1], verb=m[2], low=verb.toLowerCase();
+      const subjectLow=subject.toLowerCase();
+      if(!pluralNounSet.has(subjectLow)) continue;
+      if(/'s$/i.test(subject) || /ss$/i.test(low)) continue;
+      if(['is','was','has','does'].includes(low)) continue;
+      if(isProtected(subject) || isProtected(verb)) continue;
       let base=verb.slice(0,-1);
-      if(/(?:ches|shes|xes|zes|oes)$/i.test(verb)) base=verb.slice(0,-2);
+      if(/(?:ches|shes|xes|zes|oes|sses)$/i.test(verb)) base=verb.slice(0,-2);
       else if(/ies$/i.test(verb)) base=verb.slice(0,-3)+'y';
-      const stop=new Set(['is','was','has','does']);
-      if(stop.has(verb.toLowerCase())) continue;
       const start=m.index+m[0].lastIndexOf(verb);
       add(start,start+verb.length,verb,base,'Subject–verb agreement','The subject is plural here, so the verb normally uses its base form rather than the singular third-person form.');
     }
+
     return out;
   }
+
 
   function hideGrammarLearningPanel(){
     if(!grammarLearningPanel) return;
@@ -1454,7 +1498,35 @@ import { binaryInlined } from 'https://unpkg.com/harper.js@2.4.0/dist/binaryInli
     showGrammarLearningPanel();
   }
 
-  function showGrammarStage3BResult(lints, originalText){
+  function normalizeGrammarLint(lint, sourceText){
+    const problem = (lint && lint.problem) ? String(lint.problem) : safeProblemText(lint);
+    let replacement = '';
+    if(lint && lint.replacement != null) replacement = String(lint.replacement);
+    else {
+      const suggestions = safeSuggestions(lint);
+      if(suggestions.length) replacement = safeSuggestionText(suggestions[0]);
+    }
+    const rawMessage = safeLintMessage(lint);
+    const rawKind = safeLintKind(lint);
+    const rule = (lint && lint.rule) ? String(lint.rule) : classifyDokiRule(rawMessage, rawKind, problem, replacement);
+    const why = (lint && lint.why) ? String(lint.why) : explainDokiRule(rule, problem, replacement, rawMessage);
+    return { problem: problem || 'the highlighted part', replacement: replacement || '', rule: rule || 'Grammar / sentence structure', why: why || 'Doki found a grammar issue in this part of the sentence.' };
+  }
+
+
+  function spanOfLint(lint){
+    try { return (lint && typeof lint.span==='function') ? lint.span() : null; } catch(e){ return null; }
+  }
+  function suggestionOfLint(lint){
+    try {
+      if(lint && typeof lint.replacement==='string' && lint.replacement.trim()) return lint.replacement.trim();
+      const suggestions=safeSuggestions(lint);
+      return suggestions.length ? safeSuggestionText(suggestions[0]).trim() : '';
+    } catch(e){ return ''; }
+  }
+
+  function showGrammarStage3BResult(lints, originalText, scanToken){
+    if(scanToken != null && scanToken !== grammarScanToken) return;
     if(!grammarStatusEl) return;
     if(!Array.isArray(lints)){
       grammarStatusEl.className='grammar-status offline';
@@ -1462,24 +1534,92 @@ import { binaryInlined } from 'https://unpkg.com/harper.js@2.4.0/dist/binaryInli
       hideGrammarLearningPanel();
       return;
     }
-    const protectedTerms = ['doki','doki duck','doki duck ai','doki grammar police','pond points','trophy room','pond leaderboard'];
-    const filteredHarper = lints.filter(function(lint){
-      // Strip trailing punctuation/possessive so "Doki," or "Doki's" still match —
-      // Harper may include adjacent punctuation in the reported problem text.
-      const problem = safeProblemText(lint).trim().toLowerCase().replace(/^[^a-z0-9]+|[^a-z0-9]+$/g,'').replace(/'s$/,'');
-      return !protectedTerms.includes(problem);
+
+    const protectedTerms=['doki','doki duck','doki duck ai','doki grammar police','pond points','trophy room','pond leaderboard'];
+    const filtered=lints.filter(function(lint){
+      const p=safeProblemText(lint).trim().toLowerCase().replace(/^[^a-z0-9]+|[^a-z0-9]+$/g,'').replace(/'s$/,'');
+      return !protectedTerms.includes(p);
     });
-    const combined=filteredHarper.slice();
-    buildDokiFallbackLints(originalText,filteredHarper).forEach(function(x){ combined.push(x); });
+
+    // Doki fallback is deliberately run against the raw Harper findings. It can
+    // supply a high-confidence replacement when Harper reports a problem but
+    // returns no suggestion. It must never replace a confident Harper suggestion.
+    const fallback=buildDokiFallbackLints(originalText,filtered);
+    const combined=[];
+    function addNormalized(item){
+      if(!item) return;
+      const n=normalizeGrammarLint(item,originalText);
+      if(!n.problem) return;
+      const duplicate=combined.some(function(x){
+        return x.problem.trim().toLowerCase()===n.problem.trim().toLowerCase() &&
+          x.replacement.trim().toLowerCase()===n.replacement.trim().toLowerCase() &&
+          x.rule===n.rule;
+      });
+      if(!duplicate) combined.push(n);
+    }
+
+    // Prefer a confident Harper suggestion. Otherwise, prefer a high-confidence
+    // Doki fallback occupying the same span. This is the critical Pass 3B merge.
+    filtered.forEach(function(lint){
+      const existingReplacement=suggestionOfLint(lint);
+      if(existingReplacement){
+        addNormalized(lint);
+        return;
+      }
+      const sp=spanOfLint(lint);
+      const matching=fallback.find(function(f){
+        const fp=f.span();
+        return sp && fp && !(fp.end<=sp.start || fp.start>=sp.end);
+      });
+      if(matching) addNormalized(matching);
+      else addNormalized(lint);
+    });
+
+    // Also include Doki-only high-confidence findings that Harper missed entirely.
+    fallback.forEach(function(f){
+      const fp=f.span();
+      const already=combined.some(function(x){
+        return x.problem.trim().toLowerCase()===f.problem.trim().toLowerCase() &&
+          x.replacement.trim().toLowerCase()===f.replacement.trim().toLowerCase();
+      });
+      const hasConfidentHarper=filtered.some(function(l){
+        const sp=spanOfLint(l);
+        return sp && fp && !(fp.end<=sp.start || fp.start>=sp.end) && !!suggestionOfLint(l);
+      });
+      if(!already && !hasConfidentHarper) addNormalized(f);
+    });
+
+    // Never display an unresolved Harper message when a same-span Doki fallback
+    // has a safe correction. This second safety net also protects against odd
+    // Harper span objects or normalization differences.
+    for(const item of combined){
+      if(item.replacement) continue;
+      const candidate=fallback.find(function(f){
+        return f.problem && item.problem && f.problem.trim().toLowerCase()===item.problem.trim().toLowerCase() && f.replacement;
+      });
+      if(candidate){
+        item.replacement=candidate.replacement;
+        item.rule=candidate.rule;
+        item.why=candidate.why;
+      }
+    }
+
     if(combined.length===0){
       grammarStatusEl.className='grammar-status clean';
       grammarStatusEl.textContent='✓ Grammar scan clean';
       hideGrammarLearningPanel();
       return;
     }
+
     grammarStatusEl.className='grammar-status issue';
     grammarStatusEl.textContent='⚠ Grammar scan found '+combined.length+' issue'+(combined.length===1?'':'s');
-    appendGrammarLearningCard(originalText,combined);
+    try{
+      appendGrammarLearningCard(originalText,combined);
+    }catch(error){
+      console.warn('Doki Duck AI: Grammar result UI failed.',error);
+      hideGrammarLearningPanel();
+      grammarStatusEl.textContent='⚠ Grammar issues found, but the learning panel could not render.';
+    }
   }
 
   async function handleSend(){
@@ -1511,7 +1651,8 @@ import { binaryInlined } from 'https://unpkg.com/harper.js@2.4.0/dist/binaryInli
     meterEl.innerHTML = '<span class="grammar-scan-status">Grammar scan…</span>';
 
     // Pass 3B adds local correction/explanation/learning UI. Pond Points are still not awarded here; that belongs to Pass 3C.
-    void checkGrammarForStage3A(raw).then(function(lints){ showGrammarStage3BResult(lints, raw); });
+    const thisGrammarScan=++grammarScanToken;
+    void checkGrammarForStage3A(raw).then(function(lints){ showGrammarStage3BResult(lints, raw, thisGrammarScan); });
 
     setTimeout(function(){
       addRow(buildQuackReply(count), 'bot');
