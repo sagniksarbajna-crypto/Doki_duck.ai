@@ -293,6 +293,18 @@
   .phone.incognito .grammar-status.issue{color:#e0b56e}
   .phone.incognito .grammar-status.offline{color:#d08f8f}
 
+  /* PASS 3B: dedicated grammar learning panel */
+  .grammar-learning-panel{display:none;max-height:min(42dvh,360px);margin:0 12px 7px;background:#fffdf6;border:2px solid var(--ink);border-radius:16px;overflow:hidden;box-shadow:0 6px 18px rgba(0,0,0,.10);overscroll-behavior:contain;touch-action:pan-y;-webkit-overflow-scrolling:touch;}
+  .grammar-learning-panel.visible{display:flex;flex-direction:column;}
+  .grammar-learning-head{position:sticky;top:0;z-index:2;padding:9px 12px;background:var(--yellow);border-bottom:1px solid #c99f28;font-weight:900;font-size:13px;flex:0 0 auto;}
+  .grammar-learning-body{padding:10px 11px 12px;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y;scroll-behavior:smooth;min-height:0;}
+  .grammar-learning-panel .grammar-card{margin:0;max-width:none;border:0;box-shadow:none;background:transparent;animation:none;overflow:visible;}
+  .grammar-learning-panel .grammar-card-head{display:none;}
+  .grammar-learning-panel .grammar-card-body{padding:0;}
+  .phone.incognito .grammar-learning-panel{background:#2f2e3a;border-color:#5b596a;}
+  .phone.incognito .grammar-learning-head{background:#57508a;border-color:#7770a8;color:#f0eefc;}
+  @media(max-width:430px){.grammar-learning-panel{max-height:40dvh;margin-left:9px;margin-right:9px;}}
+
   /* ---- input ---- */
   .inputbar{
     display:flex;
@@ -626,6 +638,10 @@
   <div class="meter" id="meter">&nbsp;</div>
 
   <div class="grammar-status" id="grammarStatus" aria-live="polite">Grammar engine: starting…</div>
+  <div class="grammar-learning-panel" id="grammarLearningPanel" aria-live="polite" aria-hidden="true">
+    <div class="grammar-learning-head" id="grammarLearningHead">🚨 Doki Grammar Police</div>
+    <div class="grammar-learning-body" id="grammarLearningBody"></div>
+  </div>
 
   <div class="inputbar">
     <input type="text" id="userInput" placeholder="Type anything…" autocomplete="off" maxlength="500">
@@ -922,6 +938,9 @@ import { binaryInlined } from 'https://unpkg.com/harper.js@2.4.0/dist/binaryInli
   const sendBtn = document.getElementById('sendBtn');
   const meterEl = document.getElementById('meter');
   const grammarStatusEl = document.getElementById('grammarStatus');
+  const grammarLearningPanel = document.getElementById('grammarLearningPanel');
+  const grammarLearningHead = document.getElementById('grammarLearningHead');
+  const grammarLearningBody = document.getElementById('grammarLearningBody');
   const incogBtn = document.getElementById('incogBtn');
   const headerStatus = document.getElementById('headerStatus');
   const themeColorMeta = document.getElementById('themeColorMeta');
@@ -1179,6 +1198,7 @@ import { binaryInlined } from 'https://unpkg.com/harper.js@2.4.0/dist/binaryInli
         return null;
       }
       if(grammarStatusEl){ grammarStatusEl.className='grammar-status scan'; grammarStatusEl.textContent='Grammar scan…'; }
+      hideGrammarLearningPanel();
       const ready = await (window.dokiHarperReady || Promise.resolve(activeLinter));
       if(!ready){
         if(grammarStatusEl){ grammarStatusEl.className='grammar-status offline'; grammarStatusEl.textContent='⚠ Grammar engine unavailable · chat still works'; }
@@ -1223,6 +1243,7 @@ import { binaryInlined } from 'https://unpkg.com/harper.js@2.4.0/dist/binaryInli
   function classifyDokiRule(message, kind, problemText, replacement){
     const hay = (String(message) + ' ' + String(kind) + ' ' + String(problemText)).toLowerCase();
     if(/subject.?verb|agreement|third person|singular/.test(hay)) return 'Subject–verb agreement';
+    if(/auxiliary|helping verb|modal/.test(hay)) return 'Auxiliary verb';
     if(/tense|past|present|future|verb form/.test(hay)) return 'Verb tense / form';
     if(/article|a\s+vs\s+an|an\s+a/.test(hay)) return 'Articles';
     if(/pronoun/.test(hay)) return 'Pronouns';
@@ -1238,6 +1259,8 @@ import { binaryInlined } from 'https://unpkg.com/harper.js@2.4.0/dist/binaryInli
     switch(rule){
       case 'Subject–verb agreement':
         return 'The subject and verb need to agree in number. Singular subjects often take a singular verb form.';
+      case 'Auxiliary verb':
+        return 'After a helping verb such as "doesn\'t", "don\'t", or "didn\'t", the main verb normally stays in its base form.';
       case 'Verb tense / form':
         return 'The verb form does not match the time or grammatical structure of the sentence. Keep the tense consistent with the meaning.';
       case 'Articles':
@@ -1302,8 +1325,55 @@ import { binaryInlined } from 'https://unpkg.com/harper.js@2.4.0/dist/binaryInli
       if(/^didn(?:'|’)t$/i.test(m[1]) && irregular[verb.toLowerCase()]) base=irregular[verb.toLowerCase()];
       if(base && base.toLowerCase()!==verb.toLowerCase()){
         const start=m.index+m[0].lastIndexOf(verb);
-        add(start,start+verb.length,verb,base,'Auxiliary verb + base form','After a helping verb such as “doesn’t”, “don’t”, or “didn’t”, the main verb normally stays in its base form.');
+        add(start,start+verb.length,verb,base,'Auxiliary verb','After a helping verb such as “doesn’t”, “don’t”, or “didn’t”, the main verb normally stays in its base form.');
       }
+    }
+
+    // High-confidence pronoun agreement rules.
+    const pronounPairs = /\b(he|she|it|they|we|you)\s+(doesn't|does not|don't|do not|are|were|have|has|is|was)\b/gi;
+    while((m=pronounPairs.exec(source))){
+      const subject=m[1].toLowerCase();
+      const wrong=m[2];
+      let replacement='';
+      if(/^(he|she|it)$/.test(subject)){
+        const map={"don't":"doesn't",'do not':'does not',are:'is',were:'was',have:'has'};
+        replacement=map[wrong.toLowerCase()] || '';
+      }else{
+        const map={"doesn't":"don't",'does not':'do not',is:'are',was:'were',has:'have'};
+        replacement=map[wrong.toLowerCase()] || '';
+      }
+      if(replacement){
+        const start=m.index + m[0].toLowerCase().lastIndexOf(wrong.toLowerCase());
+        add(start,start+wrong.length,wrong,replacement,'Subject–verb agreement','The subject and verb should agree in number and person.');
+      }
+    }
+
+    // High-confidence: singular subject (he/she/it) directly followed by a bare
+    // base-form verb that needs the third-person -s. Deliberately restricted to a
+    // curated whitelist of common, unambiguous action verbs so this never fires on
+    // an irregular past tense (went, ate, saw), a modal (will, can, should), or a
+    // be/have/do form already covered by the rule above — those are excluded by
+    // construction since they simply aren't in the whitelist.
+    const baseVerbWhitelist = new Set(['go','want','like','love','need','work','play','walk','run','talk',
+      'feel','think','know','look','come','live','study','watch','listen','read','write','wait','help',
+      'try','believe','hope','agree','understand','remember','forget','start','stop','use','make','take',
+      'give','tell','ask','answer','laugh','cry','smile','dance','sing','cook','drive','eat','drink','sleep',
+      'open','close','clean','buy','sell','pay','call','text','share','follow','miss','hate','enjoy','prefer',
+      'plan','decide','choose','learn','teach','explain','discuss','fight','win','lose','practice','train',
+      'exercise','swim','jump','climb','build','fix','break','create','design','draw','paint','quack']);
+    function addThirdPersonS(v){
+      if(/(?:ch|sh)$/i.test(v) || /[sxz]$/i.test(v)) return v+'es';
+      if(/[^aeiou]o$/i.test(v)) return v+'es';
+      if(/[^aeiou]y$/i.test(v)) return v.slice(0,-1)+'ies';
+      return v+'s';
+    }
+    const bareVerb = /\b(he|she|it)\s+([A-Za-z]+)\b/gi;
+    while((m=bareVerb.exec(source))){
+      const verb = m[2];
+      if(!baseVerbWhitelist.has(verb.toLowerCase())) continue;
+      const start = m.index + m[0].lastIndexOf(verb);
+      add(start, start+verb.length, verb, addThirdPersonS(verb), 'Subject–verb agreement',
+        'A singular subject like “he”, “she”, or “it” normally pairs with the third-person -s form of the verb.');
     }
 
     // High-confidence plural-subject + third-person -s mismatch.
@@ -1313,10 +1383,6 @@ import { binaryInlined } from 'https://unpkg.com/harper.js@2.4.0/dist/binaryInli
       const subject=m[1], verb=m[2];
       // Do not treat possessives or common plural nouns as subjects blindly.
       if(/'s$/i.test(subject)) continue;
-      if(/^(is|was|has|does|needs|likes|wants|goes|uses|comes|does)$/i.test(verb)){
-        // A plural subject with an irregular/third-person-looking verb is worth checking,
-        // but only convert the common regular -s forms to a base verb.
-      }
       if(!/s$/i.test(verb) || /ss$/i.test(verb)) continue;
       let base=verb.slice(0,-1);
       if(/(?:ches|shes|xes|zes|oes)$/i.test(verb)) base=verb.slice(0,-2);
@@ -1324,13 +1390,27 @@ import { binaryInlined } from 'https://unpkg.com/harper.js@2.4.0/dist/binaryInli
       const stop=new Set(['is','was','has','does']);
       if(stop.has(verb.toLowerCase())) continue;
       const start=m.index+m[0].lastIndexOf(verb);
-      add(start,start+verb.length,verb,base,'Plural subject–verb agreement','The subject is plural here, so the verb normally uses its base form rather than the singular third-person form.');
+      add(start,start+verb.length,verb,base,'Subject–verb agreement','The subject is plural here, so the verb normally uses its base form rather than the singular third-person form.');
     }
     return out;
   }
 
+  function hideGrammarLearningPanel(){
+    if(!grammarLearningPanel) return;
+    grammarLearningPanel.classList.remove('visible');
+    grammarLearningPanel.setAttribute('aria-hidden','true');
+    if(grammarLearningBody) grammarLearningBody.innerHTML='';
+  }
+
+  function showGrammarLearningPanel(){
+    if(!grammarLearningPanel) return;
+    grammarLearningPanel.classList.add('visible');
+    grammarLearningPanel.setAttribute('aria-hidden','false');
+    requestAnimationFrame(function(){ if(grammarLearningBody) grammarLearningBody.scrollTop=0; });
+  }
+
   function appendGrammarLearningCard(text, lints){
-    if(!messagesEl || !Array.isArray(lints) || !lints.length) return;
+    if(!grammarLearningBody || !Array.isArray(lints) || !lints.length) return;
     const card=document.createElement('div');
     card.className='grammar-card'+(lints.length>1?' multi':'');
     const head=document.createElement('div'); head.className='grammar-card-head';
@@ -1342,7 +1422,7 @@ import { binaryInlined } from 'https://unpkg.com/harper.js@2.4.0/dist/binaryInli
     body.appendChild(intro);
     const intro2=document.createElement('div'); intro2.className='grammar-doki';
     const firstRule = lints[0].rule || classifyDokiRule(lints[0].message || safeLintMessage(lints[0]), lints[0].rule || safeLintKind(lints[0]), lints[0].problem || safeProblemText(lints[0]), lints[0].replacement || '');
-    const quip = lints.length>1 ? 'Multiple grammar crimes. Doki has opened a full investigation.' : (firstRule==='Subject–verb agreement' || firstRule==='Auxiliary verb + base form' || /verb/i.test(firstRule) ? 'Doki has arrested the verb for agreeing with absolutely nobody.' : 'Doki found something suspicious. The duck investigation is underway.');
+    const quip = lints.length>1 ? 'Multiple grammar crimes. Doki has opened a full investigation.' : (firstRule==='Subject–verb agreement' || firstRule==='Auxiliary verb' || /verb/i.test(firstRule) ? 'Doki has arrested the verb for agreeing with absolutely nobody.' : 'Doki found something suspicious. The duck investigation is underway.');
     intro2.textContent='Found '+lints.length+' issue'+(lints.length===1?'':'s')+'. '+quip;
     body.appendChild(intro2);
     lints.forEach(function(lint,index){
@@ -1367,7 +1447,11 @@ import { binaryInlined } from 'https://unpkg.com/harper.js@2.4.0/dist/binaryInli
     const fb=feedback.querySelectorAll('button');
     fb[0].addEventListener('click',function(){feedback.querySelector('span').textContent='Thanks. Doki will pretend to value your opinion.';});
     fb[1].addEventListener('click',function(){feedback.querySelector('span').textContent='Feedback noted. Doki remains suspicious.';});
-    body.appendChild(feedback); card.appendChild(body); messagesEl.appendChild(card); scrollToBottom();
+    body.appendChild(feedback);
+    card.appendChild(body);
+    grammarLearningBody.innerHTML='';
+    grammarLearningBody.appendChild(card);
+    showGrammarLearningPanel();
   }
 
   function showGrammarStage3BResult(lints, originalText){
@@ -1375,18 +1459,22 @@ import { binaryInlined } from 'https://unpkg.com/harper.js@2.4.0/dist/binaryInli
     if(!Array.isArray(lints)){
       grammarStatusEl.className='grammar-status offline';
       grammarStatusEl.textContent='⚠ Grammar engine unavailable · chat still works';
+      hideGrammarLearningPanel();
       return;
     }
-    const protectedTerms = new Set(['doki','doki duck','doki duck ai','doki grammar police','pond points']);
+    const protectedTerms = ['doki','doki duck','doki duck ai','doki grammar police','pond points','trophy room','pond leaderboard'];
     const filteredHarper = lints.filter(function(lint){
-      const problem = safeProblemText(lint).trim().toLowerCase();
-      return !protectedTerms.has(problem);
+      // Strip trailing punctuation/possessive so "Doki," or "Doki's" still match —
+      // Harper may include adjacent punctuation in the reported problem text.
+      const problem = safeProblemText(lint).trim().toLowerCase().replace(/^[^a-z0-9]+|[^a-z0-9]+$/g,'').replace(/'s$/,'');
+      return !protectedTerms.includes(problem);
     });
     const combined=filteredHarper.slice();
     buildDokiFallbackLints(originalText,filteredHarper).forEach(function(x){ combined.push(x); });
     if(combined.length===0){
       grammarStatusEl.className='grammar-status clean';
       grammarStatusEl.textContent='✓ Grammar scan clean';
+      hideGrammarLearningPanel();
       return;
     }
     grammarStatusEl.className='grammar-status issue';
@@ -1452,6 +1540,8 @@ import { binaryInlined } from 'https://unpkg.com/harper.js@2.4.0/dist/binaryInli
 
   function setIncognito(on){
     incognito = on;
+    hideGrammarLearningPanel();
+    grammarScanToken++;
     phone.classList.toggle('incognito', on);
     inputEl.type = on ? 'password' : 'text';
     inputEl.placeholder = on ? 'Type anything… (hidden)' : 'Type anything…';
